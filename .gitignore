@@ -114,6 +114,10 @@ video_dir
 .idea
 docs/out
 
+bugs/
+videos/
+logs/
+
 # specific entries for arlo-fhem 
 arlo-fhem.cfg
 debug.log

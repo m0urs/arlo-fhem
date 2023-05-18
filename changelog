@@ -1,3 +1,31 @@
+0.8.0b7:
+  Allow more MQTT config.
+  Fix headers.
+  Distinguish between user/shared location.
+  Fix missing event issue.
+  Tidy capture code.
+  Specify Python 3
+0.8.0b6: Simplify state checking; bring API up to date and remove deprecated
+    calls
+  Add back the packet docs.
+0.8.0b5: Add initial 8-in-1 sensor support
+    [thanks xirtamoen for lending the sensors]
+  Support Arlo v4 APIs
+    [thanks JeffSteinbok for the implementation]
+0.8.0b4: Allow ping when devices are on chargers.
+  Added event_id and time to URL paths.
+  Added custom cipher list.
+0.8.0b3: Better snapshot tidy up.
+  Improve debugging - add component or ID to debug entry.
+  Allow actual user agent to be used by prefixing with a !
+  Undo broken IMAP
+  Fix doorbell motion
+  Fix doorbell capabilities
+0.8.0b2: Better shutdown of threads.
+  Allow ciphers to be set to SSL defaults.
+  Try to parse all email parts looking for the authentication code.
+  Open mailbox read only, stops the wrong emails getting marked as read.
+  Better detection of backend.
 0.8.0b1: Fix yahoo imap support.
   Fix creation of ArloSnapshot objects.
 

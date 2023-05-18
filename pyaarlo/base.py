@@ -1,5 +1,9 @@
 import pprint
 import time
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from . import PyArlo
 
 from .constant import (
     AIR_QUALITY_KEY,
@@ -16,6 +20,7 @@ from .constant import (
     MODEL_BABY,
     MODEL_ESSENTIAL,
     MODEL_GO,
+    MODEL_HUB,
     MODEL_PRO_3_FLOODLIGHT,
     MODEL_PRO_4,
     MODEL_WIREFREE_VIDEO_DOORBELL,
@@ -25,7 +30,7 @@ from .constant import (
     SCHEDULE_KEY,
     SIREN_STATE_KEY,
     TEMPERATURE_KEY,
-    TIMEZONE_KEY,
+    TIMEZONE_KEY
 )
 from .device import ArloDevice
 from .util import time_to_arlotime
@@ -34,9 +39,11 @@ from .ratls import ArloRatls
 
 day_of_week = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su", "Mo"]
 
+
 class ArloBase(ArloDevice):
-    def __init__(self, name, arlo, attrs):
+    def __init__(self, name: str, arlo: 'PyArlo', attrs):
         super().__init__(name, arlo, attrs)
+        self._ml = None
         self._refresh_rate = 15
         self._schedules = None
         self._last_update = 0
@@ -60,7 +67,7 @@ class ArloBase(ArloDevice):
                 if mode_name == "":
                     mode_name = mode_id
             if mode_id and mode_name != "":
-                self._arlo.debug(mode_id + "<=M=>" + mode_name)
+                self.debug(mode_id + "<=M=>" + mode_name)
                 self._save([MODE_ID_TO_NAME_KEY, mode_id], mode_name)
                 self._save([MODE_NAME_TO_ID_KEY, mode_name.lower()], mode_id)
                 self._save([MODE_IS_SCHEDULE_KEY, mode_id.lower()], False)
@@ -83,7 +90,7 @@ class ArloBase(ArloDevice):
                     if start <= minute < (start + duration):
                         modes = action.get("startActions", {}).get("enableModes", None)
                         if modes:
-                            self._arlo.debug("schdule={}".format(modes[0]))
+                            self.debug("schdule={}".format(modes[0]))
                             return modes
 
         # If nothing in schedule we are disarmed.
@@ -97,37 +104,38 @@ class ArloBase(ArloDevice):
             if schedule_name == "":
                 schedule_name = schedule_id
             if schedule_id and schedule_name != "":
-                self._arlo.debug(schedule_id + "<=S=>" + schedule_name)
+                self.debug(schedule_id + "<=S=>" + schedule_name)
                 self._save([MODE_ID_TO_NAME_KEY, schedule_id], schedule_name)
                 self._save([MODE_NAME_TO_ID_KEY, schedule_name.lower()], schedule_id)
                 self._save([MODE_IS_SCHEDULE_KEY, schedule_id.lower()], True)
                 self._save([MODE_IS_SCHEDULE_KEY, schedule_name.lower()], True)
 
     def _set_mode_or_schedule(self, event):
+
         # schedule on or off?
         schedule_ids = event.get("activeSchedules", [])
         if schedule_ids:
-            self._arlo.debug(self.name + " schedule change " + schedule_ids[0])
+            self.debug(self.name + " schedule change " + schedule_ids[0])
             schedule_name = self._id_to_name(schedule_ids[0])
             self._save_and_do_callbacks(SCHEDULE_KEY, schedule_name)
         else:
-            self._arlo.debug(self.name + " schedule cleared ")
+            self.debug(self.name + " schedule cleared ")
             self._save_and_do_callbacks(SCHEDULE_KEY, None)
 
         # mode present? we just set to that one... If no mode but schedule then
         # try to parse that out
         mode_ids = event.get("activeModes", [])
         if not mode_ids and schedule_ids:
-            self._arlo.debug(self.name + " mode change (via schedule) ")
-            self._arlo.vdebug(self.name + " schedules: " + pprint.pformat(self._schedules))
+            self.debug(self.name + " mode change (via schedule) ")
+            self.vdebug(self.name + " schedules: " + pprint.pformat(self._schedules))
             mode_ids = self.schedule_to_modes()
         if mode_ids:
-            self._arlo.debug(self.name + " mode change " + mode_ids[0])
+            self.debug(self.name + " mode change " + mode_ids[0])
             mode_name = self._id_to_name(mode_ids[0])
             self._save_and_do_callbacks(MODE_KEY, mode_name)
 
     def _event_handler(self, resource, event):
-        self._arlo.debug(self.name + " BASE got " + resource)
+        self.debug(self.name + " BASE got " + resource)
 
         # modes on base station
         if resource == "modes":
@@ -155,7 +163,7 @@ class ArloBase(ArloDevice):
                 if now < self._last_update + MODE_UPDATE_INTERVAL:
                     return
                 self._last_update = now
-            self._arlo.debug("state change")
+            self.debug("state change")
             self.update_modes()
             self.update_mode()
 
@@ -172,24 +180,41 @@ class ArloBase(ArloDevice):
             super()._event_handler(resource, event)
 
     @property
-    def _v1_modes(self):
+    def _modes_version(self):
         if self._arlo.cfg.mode_api.lower() == "v1":
-            self._arlo.vdebug("forced v1 api")
-            return True
+            self.vdebug("forced v1 api")
+            return 1
         if self._arlo.cfg.mode_api.lower() == "v2":
-            self._arlo.vdebug("forced v2 api")
-            return False
+            self.vdebug("forced v2 api")
+            return 2
+        if self._arlo.cfg.mode_api.lower() == "v3":
+            self._arlo.vdebug("forced v3 api")
+            return 3
+        if self._arlo.be.multi_location:
+            self._arlo.vdebug("multilocation, deduced v3 api")
+            return 3
         if (
             self.model_id == MODEL_BABY
             or self.model_id == MODEL_GO
             or self.device_type == "arloq"
             or self.device_type == "arloqs"
         ):
-            self._arlo.vdebug("deduced v1 api")
+            self.vdebug("deduced v1 api")
             return True
-        else:
-            self._arlo.vdebug("deduced v2 api")
-            return False
+        self._arlo.vdebug("deduced v2 api")
+        return 2
+
+    @property
+    def _v1_modes(self):
+        return self._modes_version == 1
+
+    @property
+    def _v2_modes(self):
+        return self._modes_version == 2
+
+    @property
+    def _v3_modes(self):
+        return self._modes_version == 3
 
     @property
     def available_modes(self):
@@ -221,21 +246,26 @@ class ArloBase(ArloDevice):
     def mode(self, mode_name):
         """Set the base station mode.
 
-        **Note:** Setting mode has been known to hang, method includes code to keep retrying.
+        **Note:** Setting mode has been known to hang, method includes code to
+        keep retrying.
 
         :param mode_name: mode to use, as returned by available_modes:
         """
+        if self._v3_modes:
+            self._arlo.debug(f"BaseStations don't have modes in v3")
+            return
+
         # Actually passed a mode?
         mode_id = None
         real_mode_name = self._id_to_name(mode_name)
         if real_mode_name:
-            self._arlo.debug(f"passed an ID({mode_name}), converting it")
+            self.debug(f"passed an ID({mode_name}), converting it")
             mode_id = mode_name
             mode_name = real_mode_name
 
         # Need to change?
         if self.mode == mode_name:
-            self._arlo.debug("no mode change needed")
+            self.debug("no mode change needed")
             return
 
         if mode_id is None:
@@ -244,21 +274,22 @@ class ArloBase(ArloDevice):
 
             # Need to change?
             if self.mode == mode_id:
-                self._arlo.debug("no mode change needed (id)")
+                self.debug("no mode change needed (id)")
                 return
 
-            # Schedule or mode? Manually set schedule key.
-            if self._id_is_schedule(mode_id):
-                active = "activeSchedules"
-                inactive = "activeModes"
-                self._save_and_do_callbacks(SCHEDULE_KEY, mode_name)
-            else:
-                active = "activeModes"
-                inactive = "activeSchedules"
-                self._save_and_do_callbacks(SCHEDULE_KEY, None)
+            if not self._v3_modes:
+                # Schedule or mode? Manually set schedule key.
+                if self._id_is_schedule(mode_id):
+                    active = "activeSchedules"
+                    inactive = "activeModes"
+                    self._save_and_do_callbacks(SCHEDULE_KEY, mode_name)
+                else:
+                    active = "activeModes"
+                    inactive = "activeSchedules"
+                    self._save_and_do_callbacks(SCHEDULE_KEY, None)
 
             # Post change.
-            self._arlo.debug(self.name + ":new-mode=" + mode_name + ",id=" + mode_id)
+            self.debug(self.name + ":new-mode=" + mode_name + ",id=" + mode_id)
             if self._v1_modes:
                 self._arlo.be.notify(
                     base=self,
@@ -269,13 +300,13 @@ class ArloBase(ArloDevice):
                         "properties": {"active": mode_id},
                     },
                 )
-            else:
+            elif self._v2_modes:
                 # This is complicated... Setting a mode can fail and setting a mode can be sync or async.
                 # This code tried 3 times to set the mode with attempts to reload the devices between
                 # attempts to try and kick Arlo. In async mode the first set works in the current thread,
                 # subsequent ones run in the background. In sync mode it the same. Sorry.
                 def _set_mode_v2_cb(attempt):
-                    self._arlo.debug("v2 arming")
+                    self.debug("v2 arming")
                     params = {
                         "activeAutomations": [
                             {
@@ -307,30 +338,40 @@ class ArloBase(ArloDevice):
                                 attempt, pprint.pformat(body)
                             )
                         )
-                        self._arlo.debug(
+                        self.debug(
                             "Fetching device list (hoping this will fix arming/disarming)"
                         )
                         self._arlo.be.devices()
                         if self._arlo.cfg.synchronous_mode:
-                            self._arlo.debug("trying again, but synchronous")
+                            self.debug("trying again, but synchronous")
                             _set_mode_v2_cb(attempt=attempt + 1)
                         else:
                             self._arlo.bg.run(_set_mode_v2_cb, attempt=attempt + 1)
                         return
 
                     self._arlo.error("Failed to set mode.")
-                    self._arlo.debug(
+                    self.debug(
                         "Giving up on setting mode! Session headers=\n{}".format(
                             pprint.pformat(self._arlo.be.session.headers)
                         )
                     )
-                    self._arlo.debug(
+                    self.debug(
                         "Giving up on setting mode! Session cookies=\n{}".format(
                             pprint.pprint(self._arlo.be.session.cookies)
                         )
                     )
 
                 _set_mode_v2_cb(1)
+            else:
+                self._arlo.be.put(
+                    base=self,
+                    body={
+                        "action": "set",
+                        "resource": "modes",
+                        "publishResponse": True,
+                        "properties": {"active": mode_id},
+                    })
+
         else:
             self._arlo.warning(
                 "{0}: mode {1} is unrecognised".format(self.name, mode_name)
@@ -341,13 +382,15 @@ class ArloBase(ArloDevice):
         now = time.monotonic()
         with self._lock:
             #  if now < self._last_update + MODE_UPDATE_INTERVAL:
-            #  self._arlo.debug('skipping an update')
+            #  self.debug('skipping an update')
             #  return
             self._last_update = now
-        data = self._arlo.be.get(AUTOMATION_PATH)
-        for mode in data:
-            if mode.get("uniqueId", "") == self.unique_id:
-                self._set_mode_or_schedule(mode)
+
+        if not self._v3_modes:
+            data = self._arlo.be.get(AUTOMATION_PATH)
+            for mode in data:
+                if mode.get("uniqueId", "") == self.unique_id:
+                    self._set_mode_or_schedule(mode)
 
     def update_modes(self, initial=False):
         """Get and update the available modes for the base."""
@@ -365,7 +408,7 @@ class ArloBase(ArloDevice):
                 self._parse_modes(props.get("modes", []))
             else:
                 self._arlo.error("unable to read mode, try forcing v2")
-        else:
+        elif self._v2_modes:
             modes = self._arlo.be.get(
                 DEFINITIONS_PATH + "?uniqueIds={}".format(self.unique_id)
             )
@@ -373,9 +416,39 @@ class ArloBase(ArloDevice):
                 modes = modes.get(self.unique_id, {})
                 self._parse_modes(modes.get("modes", []))
                 self._parse_schedules(modes.get("schedules", []))
-                self._save(TIMEZONE_KEY,modes.get("olsonTimeZone", None))
+                self._save(TIMEZONE_KEY, modes.get("olsonTimeZone", None))
             else:
                 self._arlo.error("failed to read modes (v2)")
+        else:
+            self._arlo.debug("V3Modes - None on BaseStation")
+            curr_location = None
+            for location in self._arlo.locations:
+                for device_id in location.device_ids:
+                    if device_id == self.unique_id:
+                        curr_location = location
+                        break
+                if curr_location is not None:
+                    break
+            if curr_location:
+                curr_location.update_mode()
+
+    def update_states(self):
+        """Get device state from 'old' style base stations.
+        Most new devices return their state from the the devices URL but we
+        need to query the original base stations for their child states.
+        """
+        # Only do work on 'old' style base stations
+        if self.device_type == 'basestation' or self.device_type == 'arlobridge':
+            self.debug("updating state")
+            self._arlo.be.notify(
+                base=self,
+                body={
+                    "action": "get",
+                    "resource": "devices",
+                    "publishResponse": False,
+                },
+                wait_for="response",
+            )
 
     @property
     def schedule(self):
@@ -420,7 +493,7 @@ class ArloBase(ArloDevice):
                 "pattern": "alarm",
             },
         }
-        self._arlo.debug(str(body))
+        self.debug(str(body))
         self._arlo.be.notify(base=self, body=body)
 
     def siren_off(self):
@@ -434,7 +507,7 @@ class ArloBase(ArloDevice):
             "publishResponse": True,
             "properties": {"sirenState": "off"},
         }
-        self._arlo.debug(str(body))
+        self.debug(str(body))
         self._arlo.be.notify(base=self, body=body)
 
     def restart(self):
@@ -444,7 +517,7 @@ class ArloBase(ArloDevice):
             self._arlo.be.post(RESTART_PATH, params=params, tid=tid, wait_for=None)
             is None
         ):
-            self._arlo.debug("RESTART didnt send")
+            self.debug("RESTART didnt send")
 
     def _ping_and_check_reply(self):
         body = {
@@ -453,7 +526,7 @@ class ArloBase(ArloDevice):
             "publishResponse": False,
             "properties": {"devices": [self.device_id]},
         }
-        self._arlo.debug("pinging {}".format(self.name))
+        self.debug("pinging {}".format(self.name))
         if self._arlo.be.notify(base=self, body=body, wait_for="response") is None:
             self._save_and_do_callbacks(CONNECTION_KEY, "unavailable")
         else:
@@ -478,23 +551,30 @@ class ArloBase(ArloDevice):
                 or self.model_id == MODEL_GO
             ):
                 return True
+
         if cap in (PING_CAPABILITY,):
             if self.model_id.startswith(MODEL_BABY):
                 return True
-            # Battery powered wifi devices that act as their own base station don't get pinged.
-            # Generic check.
-            if self.is_own_parent and self.using_wifi and not self.is_corded:
-                return False
-            # Several models report incorrect wifi so we check for those as well.
-            if (
-                self.is_own_parent
-                and self.model_id.startswith(
+
+            # We have to be careful pinging some base stations because it can rapidly
+            # drain the battery power. Don't ping if:
+            # - it is a device that acts as its own base station
+            # - it does not have a power supply or charger connected
+            # - it is using WiFi directly rather than an Arlo base station
+            if self.is_own_parent:
+                if not self.is_corded and not self.has_charger:
+                    if self.using_wifi:
+                        return False
+
+            # Don't ping these devices ever.
+            if self.model_id.startswith(
                     (MODEL_WIREFREE_VIDEO_DOORBELL, MODEL_ESSENTIAL, MODEL_PRO_3_FLOODLIGHT, MODEL_PRO_4)
-                )
-                and not self.is_corded
             ):
                 return False
+
+            # All others, then ping.
             return True
+
         if cap in (RESOURCE_CAPABILITY,):
             # Not all devices need (or want) to get their resources queried.
             if self.model_id.startswith(
@@ -509,7 +589,7 @@ class ArloBase(ArloDevice):
 
     def keep_ratls_open(self):
         if self._ratls:
-            self._arlo.debug("refreshing ratls for {}".format(self.name))
+            self.debug("refreshing ratls for {}".format(self.name))
             self._ratls.open_port()
 
     def build_media_library(self):
