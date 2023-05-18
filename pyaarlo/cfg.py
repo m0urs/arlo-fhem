@@ -1,6 +1,9 @@
+import platform
+import tempfile
 from .constant import (
     DEFAULT_AUTH_HOST,
     DEFAULT_HOST,
+    MQTT_HOST,
     PRELOAD_DAYS,
     TFA_CONSOLE_SOURCE,
     TFA_DEFAULT_HOST,
@@ -27,11 +30,15 @@ class ArloCfg(object):
         """
         self._arlo = arlo
         self._kw = kwargs
-        self._arlo.debug("Cfg started")
+        self._arlo.debug("config: loaded")
+        if platform.system() == "Windows":
+            self._storage_dir = tempfile.gettempdir() + r"\.aarlo"
+        else:
+            self._storage_dir = self._kw.get("storage_dir", "/tmp/.aarlo")
 
     @property
     def storage_dir(self):
-        return self._kw.get("storage_dir", "/tmp/.aarlo")
+        return self._storage_dir
 
     @property
     def name(self):
@@ -52,6 +59,18 @@ class ArloCfg(object):
     @property
     def auth_host(self):
         return self._kw.get("auth_host", DEFAULT_AUTH_HOST)
+
+    @property
+    def mqtt_host(self):
+        return self._kw.get("mqtt_host", MQTT_HOST)
+
+    @property
+    def mqtt_hostname_check(self):
+        return self._kw.get("mqtt_hostname_check", True)
+
+    @property
+    def mqtt_transport(self):
+        return self._kw.get("mqtt_transport", "tcp")
 
     @property
     def dump(self):
@@ -181,7 +200,7 @@ class ArloCfg(object):
 
     @property
     def tfa_nickname(self):
-       return self._kw.get("tfa_nickname", self.tfa_username)
+        return self._kw.get("tfa_nickname", self.tfa_username)
 
     @property
     def wait_for_initial_setup(self):
@@ -244,5 +263,11 @@ class ArloCfg(object):
         return self._kw.get("no_unicode_squash", True)
 
     @property
-    def use_mqtt(self):
-        return self._kw.get("backend", "mqtt") == "mqtt"
+    def event_backend(self):
+        return self._kw.get("backend", "auto")
+
+    @property
+    def cipher_list(self):
+        if self._kw.get("default_ciphers", False):
+            return 'DEFAULT'
+        return self._kw.get("cipher_list", "")

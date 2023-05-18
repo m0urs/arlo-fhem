@@ -2,6 +2,7 @@ import email
 import imaplib
 import re
 import time
+import ssl
 
 import requests
 
@@ -15,15 +16,18 @@ class Arlo2FAConsole:
         self._arlo = arlo
 
     def start(self):
-        self._arlo.debug("2fa-console: starting")
+        self.debug("starting")
         return True
 
     def get(self):
-        self._arlo.debug("2fa-console: checking")
+        self.debug("checking")
         return input("Enter Code: ")
 
     def stop(self):
-        self._arlo.debug("2fa-console: stopping")
+        self.debug("stopping")
+
+    def debug(self, msg):
+        self._arlo.debug(f"2fa-console: {msg}")
 
 
 class Arlo2FAImap:
@@ -40,43 +44,52 @@ class Arlo2FAImap:
         self._new_ids = None
 
     def start(self):
-        self._arlo.debug("2fa-imap: starting")
+        self.debug("starting")
 
         # clean up
         if self._imap is not None:
             self.stop()
 
         try:
-            self._imap = imaplib.IMAP4_SSL(self._arlo.cfg.tfa_host, port=self._arlo.cfg.tfa_port)
+            # allow default ciphers to be specified
+            cipher_list = self._arlo.cfg.cipher_list
+            if cipher_list != "":
+                ctx = ssl.create_default_context()
+                ctx.set_ciphers(cipher_list)
+                self.debug(f"imap is using custom ciphers {cipher_list}")
+            else:
+                ctx = None
+
+            self._imap = imaplib.IMAP4_SSL(self._arlo.cfg.tfa_host, port=self._arlo.cfg.tfa_port, ssl_context=ctx)
             res, status = self._imap.login(
                 self._arlo.cfg.tfa_username, self._arlo.cfg.tfa_password
             )
             if res.lower() != "ok":
-                self._arlo.debug("imap login failed")
+                self.debug("imap login failed")
                 return False
-            res, status = self._imap.select()
+            res, status = self._imap.select(mailbox='INBOX', readonly=True)
             if res.lower() != "ok":
-                self._arlo.debug("imap select failed")
+                self.debug("imap select failed")
                 return False
             res, self._old_ids = self._imap.search(
                 None, "FROM", "do_not_reply@arlo.com"
             )
             if res.lower() != "ok":
-                self._arlo.debug("imap search failed")
+                self.debug("imap search failed")
                 return False
         except Exception as e:
             self._arlo.error(f"imap connection failed{str(e)}")
             return False
 
         self._new_ids = self._old_ids
-        self._arlo.debug("old-ids={}".format(self._old_ids))
+        self.debug("old-ids={}".format(self._old_ids))
         if res.lower() == "ok":
             return True
 
         return False
 
     def get(self):
-        self._arlo.debug("2fa-imap: checking")
+        self.debug("checking")
 
         # give tfa_total_timeout seconds for email to arrive
         start = time.time()
@@ -94,9 +107,9 @@ class Arlo2FAImap:
                 res, self._new_ids = self._imap.search(
                     None, "FROM", "do_not_reply@arlo.com"
                 )
-                self._arlo.debug("2fa-imap: new-ids={}".format(self._new_ids))
+                self.debug("new-ids={}".format(self._new_ids))
                 if self._new_ids == self._old_ids:
-                    self._arlo.debug("2fa-imap: no change in emails")
+                    self.debug("no change in emails")
                     continue
 
                 # new message...
@@ -107,12 +120,25 @@ class Arlo2FAImap:
                     if msg_id in old_ids:
                         continue
 
-                    # new message. look for HTML part and look code code in it
-                    self._arlo.debug("2fa-imap: new-msg={}".format(msg_id))
-                    res, msg = self._imap.fetch(msg_id, "(BODY[])")
-                    for part in email.message_from_bytes(msg[0][1]).walk():
-                        if part.get_content_type() == "text/html":
-                            for line in part.get_payload(decode=True).splitlines():
+                    # New message. Look at all the parts and try to grab the code, if we catch an exception
+                    # just move onto the next part.
+                    self.debug("new-msg={}".format(msg_id))
+                    res, msg = self._imap.fetch(msg_id, "(BODY.PEEK[])")
+                    if isinstance(msg[0][1], bytes):
+                        for part in email.message_from_bytes(msg[0][1]).walk():
+                            if part.get_content_type() != "text/html":
+                                continue
+                            try:
+                                for line in part.get_payload(decode=True).splitlines():
+                                    # match code in email, this might need some work if the email changes
+                                    code = re.match(r"^\W+(\d{6})\W*$", line.decode())
+                                    if code is not None:
+                                        self.debug(
+                                            "code={}".format(code.group(1))
+                                        )
+                                        return code.group(1)
+                            except:
+                                self.debug("trying next part")
 
                                 # match code in email, this might need some work if the email changes
                                 code = re.match(r"^\W*(\d{6})\W*$", line.decode())
@@ -133,13 +159,16 @@ class Arlo2FAImap:
         return None
 
     def stop(self):
-        self._arlo.debug("2fa-imap: stopping")
+        self.debug("stopping")
 
         self._imap.close()
         self._imap.logout()
         self._imap = None
         self._old_ids = None
         self._new_ids = None
+
+    def debug(self, msg):
+        self._arlo.debug(f"2fa-imap: {msg}")
 
 
 class Arlo2FARestAPI:
@@ -151,12 +180,12 @@ class Arlo2FARestAPI:
         self._arlo = arlo
 
     def start(self):
-        self._arlo.debug("2fa-rest-api: starting")
+        self.debug("starting")
         if self._arlo.cfg.tfa_host is None or self._arlo.cfg.tfa_password is None:
-            self._arlo.debug("2fa-rest-api: invalid config")
+            self.debug("invalid config")
             return False
 
-        self._arlo.debug("2fa-rest-api: clearing")
+        self.debug("clearing")
         response = requests.get(
             "{}/clear?email={}&token={}".format(
                 self._arlo.cfg.tfa_host,
@@ -166,12 +195,12 @@ class Arlo2FARestAPI:
             timeout=10,
         )
         if response.status_code != 200:
-            self._arlo.debug("2fa-rest-api: possible problem clearing")
+            self.debug("possible problem clearing")
 
         return True
 
     def get(self):
-        self._arlo.debug("2fa-rest-api: checking")
+        self.debug("checking")
 
         # give tfa_total_timeout seconds for email to arrive
         start = time.time()
@@ -184,7 +213,7 @@ class Arlo2FARestAPI:
                 return None
 
             # Try for the token.
-            self._arlo.debug("2fa-rest-api: checking")
+            self.debug("checking")
             response = requests.get(
                 "{}/get?email={}&token={}".format(
                     self._arlo.cfg.tfa_host,
@@ -196,10 +225,13 @@ class Arlo2FARestAPI:
             if response.status_code == 200:
                 code = response.json().get("data", {}).get("code", None)
                 if code is not None:
-                    self._arlo.debug("2fa-rest-api: code={}".format(code))
+                    self.debug("code={}".format(code))
                     return code
 
-            self._arlo.debug("2fa-rest-api: retrying")
+            self.debug("retrying")
 
     def stop(self):
-        self._arlo.debug("2fa-rest-api: stopping")
+        self.debug("stopping")
+
+    def debug(self, msg):
+        self._arlo.debug(f"2fa-rest-api: {msg}")

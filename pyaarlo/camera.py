@@ -125,10 +125,10 @@ class ArloCamera(ArloChildDevice):
         while i < len(data):
             points.append(
                 {
-                    "timestamp": int(1e3 * self._parse_statistic(data[i : (i + 4)], 0)),
-                    "temperature": self._parse_statistic(data[(i + 8) : (i + 10)], 1),
-                    "humidity": self._parse_statistic(data[(i + 14) : (i + 16)], 1),
-                    "airQuality": self._parse_statistic(data[(i + 20) : (i + 22)], 1),
+                    "timestamp": int(1e3 * self._parse_statistic(data[i: (i + 4)], 0)),
+                    "temperature": self._parse_statistic(data[(i + 8): (i + 10)], 1),
+                    "humidity": self._parse_statistic(data[(i + 14): (i + 16)], 1),
+                    "airQuality": self._parse_statistic(data[(i + 20): (i + 22)], 1),
                 }
             )
             i += 22
@@ -136,7 +136,7 @@ class ArloCamera(ArloChildDevice):
         return points[-1]
 
     def _dump_activities(self, msg):
-        self._arlo.debug(
+        self.debug(
             "{}::reqs='{}',local='{}',remote='{}'".format(
                 msg,
                 pprint.pformat(self._user_requests),
@@ -146,8 +146,8 @@ class ArloCamera(ArloChildDevice):
         )
 
     # Media library has updated, reload today's events.
-    def _update_media(self):
-        self._arlo.debug("reloading cache for " + self._name)
+    def _update_from_media_library(self):
+        self.debug("reloading cache for " + self._name)
         count, videos = self._arlo.ml.videos_for(self)
         if videos:
             captured_today = len([video for video in videos if video.created_today])
@@ -163,7 +163,7 @@ class ArloCamera(ArloChildDevice):
             self._cache_count = count
             self._cached_videos = videos
 
-        # update latest video details
+        # Update latest video details.
         if videos:
             if videos[0].created_at != self._load(LAST_VIDEO_CREATED_KEY):
                 self._save_and_do_callbacks(LAST_VIDEO_CREATED_KEY, videos[0].created_at)
@@ -172,7 +172,7 @@ class ArloCamera(ArloChildDevice):
                 self._save_and_do_callbacks(LAST_VIDEO_OBJECT_TYPE, videos[0].object_type)
                 self._save_and_do_callbacks(LAST_VIDEO_OBJECT_REGION, videos[0].object_region)
 
-        # signal video up!
+        # Tell anyone listening about the new capture and how it affects things.
         self._save_and_do_callbacks(CAPTURED_TODAY_KEY, captured_today)
         if last_captured is not None:
             self._save_and_do_callbacks(LAST_CAPTURE_KEY, last_captured)
@@ -181,74 +181,80 @@ class ArloCamera(ArloChildDevice):
         # new snapshot?
         snapshot = self._arlo.ml.snapshot_for(self)
         if snapshot is not None:
-            self._arlo.debug("snapshot updated for media " + self.name)
-            self._save(SNAPSHOT_KEY, snapshot.image_url)
-            self._arlo.bg.run_low(self._update_snapshot)
+            if self._load(SNAPSHOT_KEY, None) != snapshot.image_url:
+                self.debug("snapshot updated for media " + self.name)
+                self._save(SNAPSHOT_KEY, snapshot.image_url)
+                self._arlo.bg.run_low(self._update_image_from_snapshot)
+            else:
+                self.debug("snapshot already done for " + self.name)
 
-        # new image?
+        # New image? Then fetch it an update image details.
         if last_image is not None:
-            self._arlo.debug("image updated for media " + self.name)
-            self._save(LAST_IMAGE_KEY, last_image)
-            self._arlo.bg.run_low(self._update_image)
+            if self._load(LAST_IMAGE_KEY, None) != last_image:
+                self.debug("image updated for media " + self.name)
+                self._save(LAST_IMAGE_KEY, last_image)
+                self._arlo.bg.run_low(self._update_image_from_capture)
+            else:
+                self.debug("image already done for " + self.name)
 
     # Update last captured image.
-    def _update_image(self):
+    def _update_image_from_capture(self):
         # Get image and date, if fails ignore
         img, date = http_get_img(self._load(LAST_IMAGE_KEY, None))
         if img is None:
-            self._arlo.debug("failed to load image for " + self.name)
+            self.debug("failed to load image for " + self.name)
             return
 
         # Always make this the latest thumbnail image.
         if self._snapshot_time < date:
             self._snapshot_time = date
             date = date.strftime(self._arlo.cfg.last_format)
-            self._arlo.debug(f"updating image for {self.name} ({date})")
+            self.debug(f"updating image for {self.name} ({date})")
             self._save_and_do_callbacks(LAST_IMAGE_SRC_KEY, "capture/" + date)
-            self._save_and_do_callbacks(LAST_CAPTURE_KEY, date)
             self._save_and_do_callbacks(LAST_IMAGE_DATA_KEY, img)
         else:
             date = date.strftime(self._arlo.cfg.last_format)
-            self._arlo.vdebug(f"ignoring image for {self.name} ({date})")
+            self.vdebug(f"ignoring image for {self.name} ({date})")
 
     # Update the last snapshot
-    def _update_snapshot(self, ignore_date=False):
+    def _update_image_from_snapshot(self, ignore_date=False):
         # Get image and date, if fails ignore.
         img, date = http_get_img(self._load(SNAPSHOT_KEY, None), ignore_date)
         if img is None:
-            self._arlo.debug("failed to load snapshot for " + self.name)
+            self.debug("failed to load snapshot for " + self.name)
             return
 
         # Always make this the latest snapshot image.
         if self._snapshot_time < date:
             self._snapshot_time = date
             date = date.strftime(self._arlo.cfg.last_format)
-            self._arlo.debug(f"updating snapshot for {self.name} ({date})")
+            self.debug(f"updating snapshot for {self.name} ({date})")
             self._save_and_do_callbacks(LAST_IMAGE_SRC_KEY, "snapshot/" + date)
             self._save_and_do_callbacks(LAST_IMAGE_DATA_KEY, img)
             self._stop_snapshot()
         else:
             date = date.strftime(self._arlo.cfg.last_format)
-            self._arlo.vdebug(f"ignoring snapshot for {self.name} ({date})")
+            self.vdebug(f"ignoring snapshot for {self.name} ({date})")
 
     def _set_recent(self, timeo):
         with self._lock:
             self._recent = True
             self._arlo.bg.cancel(self._recent_job)
             self._recent_job = self._arlo.bg.run_in(self._clear_recent, timeo)
-        self._arlo.debug("turning recent ON for " + self._name)
+        self.debug("turning recent ON for " + self._name)
         self._do_callbacks(RECENT_ACTIVITY_KEY, True)
 
     def _clear_recent(self):
         with self._lock:
             self._recent = False
             self._recent_job = None
-        self._arlo.debug("turning recent OFF for " + self._name)
+        self.debug("turning recent OFF for " + self._name)
         self._do_callbacks(RECENT_ACTIVITY_KEY, False)
 
     def _stop_snapshot(self):
         # Signal to anybody waiting.
         with self._lock:
+            self._remote_users.discard("snapshot")
             if not self.has_user_request("snapshot"):
                 return
             self._user_requests.discard("snapshot")
@@ -260,16 +266,16 @@ class ArloCamera(ArloChildDevice):
             self._stop_stream(stopping_for="snapshot")
 
         # Signal stop.
-        self._arlo.debug("snapshot finished, re-signal real state")
+        self.debug("snapshot finished, re-signal real state")
         self._save_and_do_callbacks(
             ACTIVITY_STATE_KEY, self._load(ACTIVITY_STATE_KEY, "unknown")
         )
 
     def _queue_media_updates(self):
         for retry in self._arlo.cfg.media_retry:
-            self._arlo.debug("queueing update in {}".format(retry))
+            self.debug("queueing update in {}".format(retry))
             self._arlo.bg.run_in(
-                self._arlo.ml.queue_update, retry, cb=self._update_media
+                self._arlo.ml.queue_update, retry, cb=self._update_from_media_library
             )
 
     def _mark_as_idle(self):
@@ -277,12 +283,12 @@ class ArloCamera(ArloChildDevice):
         Either we did this or backend did this.
         """
         if self.has_any_local_users:
-            self._arlo.debug("got a stream/recording stop")
+            self.debug("got a stream/recording stop")
             self._queue_media_updates()
             self._set_recent(self._arlo.cfg.recent_time)
 
         # Remove streaming from state
-        self._arlo.debug("removing streaming activity state")
+        self.debug("removing streaming activity state")
         with self._lock:
             self._local_users = set()
             self._remote_users = set()
@@ -339,7 +345,7 @@ class ArloCamera(ArloChildDevice):
         self._stream_url = self._arlo.be.post(STREAM_START_PATH, body, headers=headers)
         if self._stream_url is not None:
             self._stream_url = self._stream_url["url"].replace("rtsp://", "rtsps://")
-            self._arlo.debug("url={}".format(self._stream_url))
+            self.debug("url={}".format(self._stream_url))
         else:
             with self._lock:
                 self._local_users = set()
@@ -354,7 +360,7 @@ class ArloCamera(ArloChildDevice):
         self._stop_activity()
 
     def _event_handler(self, resource, event):
-        self._arlo.debug(self.name + " CAMERA got one " + resource)
+        self.debug(self.name + " CAMERA got one " + resource)
 
         # Stream has stopped or recording has stopped so new media is available.
         if resource == MEDIA_UPLOAD_KEY:
@@ -369,21 +375,21 @@ class ArloCamera(ArloChildDevice):
             # update to download the image and process it.
             if LAST_IMAGE_KEY in event:
                 if not self.is_taking_snapshot:
-                    self._arlo.debug("{} -> thumbnail changed".format(self.name))
-                    self._arlo.bg.run_low(self._update_image)
+                    self.debug("{} -> thumbnail changed".format(self.name))
+                    self._arlo.bg.run_low(self._update_image_from_capture)
                 else:
-                    self._arlo.debug(
+                    self.debug(
                         "{} -> snapshot(thumbnail) ready".format(self.name)
                     )
                     self._save(SNAPSHOT_KEY, event.get(LAST_IMAGE_KEY, ""))
-                    self._arlo.bg.run_low(self._update_snapshot, ignore_date=True)
+                    self._arlo.bg.run_low(self._update_image_from_snapshot, ignore_date=True)
 
             # Recording has stopped so a new video is available. Queue an
             # media update, this could later trigger a snapshot or image
             # update.
             if event.get(RECORDING_STOPPED_KEY, False):
-                self._arlo.debug("{} -> recording stopped".format(self.name))
-                self._arlo.ml.queue_update(self._update_media)
+                self.debug("{} -> recording stopped".format(self.name))
+                self._arlo.ml.queue_update(self._update_from_media_library)
 
             # Examine the URL passed; snapshots contain `/snapshots/` and
             # recordings contain `recordings`. For snapshot, save URL and queue
@@ -391,11 +397,11 @@ class ArloCamera(ArloChildDevice):
             # recording for now, it will come in via a media update.
             value = event.get(STREAM_SNAPSHOT_KEY, "")
             if "/snapshots/" in value:
-                self._arlo.debug("{} -> snapshot1 ready".format(self.name))
+                self.debug("{} -> snapshot1 ready".format(self.name))
                 self._save(SNAPSHOT_KEY, value)
-                self._arlo.bg.run_low(self._update_snapshot)
+                self._arlo.bg.run_low(self._update_image_from_snapshot)
             if "/recordings/" in value:
-                self._arlo.debug("{} -> new recording ready".format(self.name))
+                self.debug("{} -> new recording ready".format(self.name))
 
             # Something just happened.
             self._set_recent(self._arlo.cfg.recent_time)
@@ -414,8 +420,8 @@ class ArloCamera(ArloChildDevice):
             with self._lock:
                 if not self.has_user_request("snapshot"):
                     self._remote_users.add("snapshot")
-                    #  if not self.has_any_local_users:
-                    #  self._local_users.add("remote")
+                    self.vdebug("handle dodgy remote cameras")
+                    self._arlo.bg.run_in(self._stop_snapshot, self._arlo.cfg.snapshot_timeout)
                 self._dump_activities("_event::snap")
         if activity == "alertStreamActive":
             with self._lock:
@@ -440,17 +446,17 @@ class ArloCamera(ArloChildDevice):
                 "presignedFullFrameSnapshotUrl", None
             )
             if value is not None:
-                self._arlo.debug("{} -> snapshot2 ready".format(self.name))
+                self.debug("{} -> snapshot2 ready".format(self.name))
                 self._save(SNAPSHOT_KEY, value)
-                self._arlo.bg.run_low(self._update_snapshot)
+                self._arlo.bg.run_low(self._update_image_from_snapshot)
 
         # Non subscription...
         if event.get("action", "") == "lastImageSnapshotAvailable":
             value = event.get("properties", {}).get("presignedLastImageUrl", None)
             if value is not None:
-                self._arlo.debug("{} -> snapshot3 ready".format(self.name))
+                self.debug("{} -> snapshot3 ready".format(self.name))
                 self._save(SNAPSHOT_KEY, value)
-                self._arlo.bg.run_low(self._update_snapshot)
+                self._arlo.bg.run_low(self._update_image_from_snapshot)
 
         # Ambient sensors update, decode and push changes.
         if resource.endswith("/ambientSensors/history"):
@@ -466,18 +472,18 @@ class ArloCamera(ArloChildDevice):
         # Anything to trip recent activity?
         for key in properties:
             if key in RECENT_ACTIVITY_KEYS:
-                self._arlo.debug("recent activity key")
+                self.debug("recent activity key")
                 self._set_recent(self._arlo.cfg.recent_time)
 
         # Local record stopped, try and trip and update.
         if properties.get("localRecordingActive", True) is False:
-            self._arlo.debug("local recording stopped, updating media")
+            self.debug("local recording stopped, updating media")
             self._queue_media_updates()
 
         # Night light status.
         nightlight = properties.get(NIGHTLIGHT_KEY, None)
         if nightlight is not None:
-            self._arlo.debug(
+            self.debug(
                 "got a night light {}".format(nightlight.get("enabled", False))
             )
             if nightlight.get("enabled", False) is True:
@@ -506,7 +512,7 @@ class ArloCamera(ArloChildDevice):
         # Spotlight status.
         spotlight = properties.get(SPOTLIGHT_KEY, None)
         if spotlight is not None:
-            self._arlo.debug(
+            self.debug(
                 "got a spotlight {}".format(spotlight.get("enabled", False))
             )
             if spotlight.get("enabled", False) is True:
@@ -521,7 +527,7 @@ class ArloCamera(ArloChildDevice):
         # Floodlight status.
         floodlight = properties.get(FLOODLIGHT_KEY, None)
         if floodlight is not None:
-            self._arlo.debug("got a flood light {}".format(floodlight.get("on", False)))
+            self.debug("got a flood light {}".format(floodlight.get("on", False)))
             self._save_and_do_callbacks(FLOODLIGHT_KEY, floodlight)
 
         # Audio analytics.
@@ -702,11 +708,11 @@ class ArloCamera(ArloChildDevice):
         if wait is None:
             wait = self._arlo.cfg.synchronous_mode
         if wait:
-            self._arlo.debug("doing media update")
-            self._update_media()
+            self.debug("doing media update")
+            self._update_from_media_library()
         else:
-            self._arlo.debug("queueing media update")
-            self._arlo.bg.run_low(self._update_media)
+            self.debug("queueing media update")
+            self._arlo.bg.run_low(self._update_from_media_library)
 
     def update_last_image(self, wait=None):
         """Requests last thumbnail from the backend server.
@@ -719,11 +725,11 @@ class ArloCamera(ArloChildDevice):
         if wait is None:
             wait = self._arlo.cfg.synchronous_mode
         if wait:
-            self._arlo.debug("doing image update")
-            self._update_image()
+            self.debug("doing image update")
+            self._update_image_from_capture()
         else:
-            self._arlo.debug("queueing image update")
-            self._arlo.bg.run_low(self._update_image)
+            self.debug("queueing image update")
+            self._arlo.bg.run_low(self._update_image_from_capture)
 
     def update_ambient_sensors(self):
         """Requests the latest temperature, humidity and air quality settings.
@@ -791,10 +797,10 @@ class ArloCamera(ArloChildDevice):
         self._save_and_do_callbacks(ACTIVITY_STATE_KEY, "fullFrameSnapshot")
         if not snapshot_running:
             if stream_snapshot:
-                self._arlo.debug("streaming/recording snapshot")
+                self.debug("streaming/recording snapshot")
                 self._take_streaming_snapshot()
                 if self._arlo.cfg.stream_snapshot_stop > 0:
-                    self._arlo.debug(
+                    self.debug(
                         "queing stream stop in {}".format(
                             self._arlo.cfg.stream_snapshot_stop
                         )
@@ -805,16 +811,16 @@ class ArloCamera(ArloChildDevice):
                         stopping_for="snapshot",
                     )
             else:
-                self._arlo.debug("idle snapshot")
+                self.debug("idle snapshot")
                 self._take_idle_snapshot()
 
         for check in self._arlo.cfg.snapshot_checks:
-            self._arlo.debug("queueing snapshot check in {}".format(check))
+            self.debug("queueing snapshot check in {}".format(check))
             self._arlo.bg.run_in(
-                self._arlo.ml.queue_update, check, cb=self._update_media
+                self._arlo.ml.queue_update, check, cb=self._update_from_media_library
             )
 
-        self._arlo.vdebug("handle dodgy cameras")
+        self.vdebug("handle dodgy cameras")
         self._arlo.bg.run_in(self._stop_snapshot, self._arlo.cfg.snapshot_timeout)
 
     def get_snapshot(self, timeout=60):
@@ -832,7 +838,7 @@ class ArloCamera(ArloChildDevice):
             while mnow < mend and self.has_user_request("snapshot"):
                 self._lock.wait(mend - mnow)
                 mnow = time.monotonic()
-        self._arlo.debug("finished snapshot")
+        self.debug("finished snapshot")
         return self.last_image_from_cache
 
     @property
@@ -955,7 +961,7 @@ class ArloCamera(ArloChildDevice):
         self._stop_stream("recording")
 
     def wait_for_user_stream(self, timeout=15):
-        self._arlo.debug("waiting for stream")
+        self.debug("waiting for stream")
         mnow = time.monotonic()
         mend = mnow + timeout
         with self._lock:
@@ -966,7 +972,7 @@ class ArloCamera(ArloChildDevice):
 
         # Is active, give a small delay to get going.
         if active:
-            self._arlo.debug("delaying stream start")
+            self.debug("delaying stream start")
             self._event.wait(self._arlo.cfg.user_stream_delay)
         return active
 
@@ -1008,7 +1014,7 @@ class ArloCamera(ArloChildDevice):
             "deviceId": self.device_id,
             "olsonTimeZone": self.timezone,
         }
-        self._arlo.debug("starting recording")
+        self.debug("starting recording")
         self._save_and_do_callbacks(ACTIVITY_STATE_KEY, "alertStreamActive")
         self._arlo.bg.run(
             self._arlo.be.post,
@@ -1019,7 +1025,7 @@ class ArloCamera(ArloChildDevice):
 
         # Queue up stop.
         if duration is not None:
-            self._arlo.debug("queueing stop")
+            self.debug("queueing stop")
             self._arlo.bg.run_in(self.stop_recording, duration)
 
         return self._stream_url
@@ -1038,7 +1044,7 @@ class ArloCamera(ArloChildDevice):
             "parentId": self.parent_id,
             "deviceId": self.device_id,
         }
-        self._arlo.debug("stopping recording")
+        self.debug("stopping recording")
         self._arlo.bg.run(
             self._arlo.be.post,
             path=RECORD_STOP_PATH,
@@ -1226,7 +1232,7 @@ class ArloCamera(ArloChildDevice):
         self._arlo.be.notify(base=self, body=body)
 
     def _set_nightlight_properties(self, properties):
-        self._arlo.debug(
+        self.debug(
             "{}: setting nightlight properties: {}".format(self._name, properties)
         )
         self._arlo.be.notify(
@@ -1284,7 +1290,7 @@ class ArloCamera(ArloChildDevice):
         return self._set_nightlight_properties({"mode": mode})
 
     def _set_spotlight_properties(self, properties):
-        self._arlo.debug(
+        self.debug(
             "{}: setting spotlight properties: {}".format(self._name, properties)
         )
         self._arlo.be.notify(
@@ -1316,7 +1322,7 @@ class ArloCamera(ArloChildDevice):
         return self._set_spotlight_properties({"intensity": (brightness / 255 * 100)})
 
     def _set_floodlight_properties(self, properties):
-        self._arlo.debug(
+        self.debug(
             "{}: setting floodlight properties: {}".format(self._name, properties)
         )
         self._arlo.be.notify(
