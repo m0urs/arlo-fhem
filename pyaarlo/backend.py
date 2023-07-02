@@ -687,6 +687,12 @@ class ArloBackEnd(object):
             "x-user-device-type": "BROWSER",
             "Cache-Control": "no-cache",
             "Pragma": "no-cache",
+            "Sec-Ch-Ua": 'Not.A/Brand";v="8", "Chromium";v="114", "Microsoft Edge";v="114',
+            "Sec-Ch-Ua-Mobile": "?0",
+            "Sec-Ch-Ua-Platform": "Windows",
+            "Sec-Fetch-Dest": "empty",
+            "Sec-Fetch-Mode": "cors",
+            "Sec-Fetch-Site": "same-site",
         }
 
         # Handle 1015 error
@@ -898,8 +904,12 @@ class ArloBackEnd(object):
             "Referer": REFERER_HOST,
             "SchemaVersion": "1",
             "User-Agent": self._user_agent,
-            "Cache-Control": "no-cache",
-            "Pragma": "no-cache",
+            "Sec-Ch-Ua": 'Not.A/Brand";v="8", "Chromium";v="114", "Microsoft Edge";v="114',
+            "Sec-Ch-Ua-Mobile": "?0",
+            "Sec-Ch-Ua-Platform": "Windows",
+            "Sec-Fetch-Dest": "empty",
+            "Sec-Fetch-Mode": "cors",
+            "Sec-Fetch-Site": "same-site",
         }
         self._session.headers.update(headers)
 
