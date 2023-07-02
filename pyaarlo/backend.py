@@ -685,6 +685,8 @@ class ArloBackEnd(object):
             "x-user-device-id": self._user_device_id,
             "x-user-device-automation-name": "QlJPV1NFUg==",
             "x-user-device-type": "BROWSER",
+            "Cache-Control": "no-cache",
+            "Pragma": "no-cache",
         }
 
         # Handle 1015 error
@@ -896,6 +898,8 @@ class ArloBackEnd(object):
             "Referer": REFERER_HOST,
             "SchemaVersion": "1",
             "User-Agent": self._user_agent,
+            "Cache-Control": "no-cache",
+            "Pragma": "no-cache",
         }
         self._session.headers.update(headers)
 
