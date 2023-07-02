@@ -687,7 +687,7 @@ class ArloBackEnd(object):
             "x-user-device-type": "BROWSER",
             "Cache-Control": "no-cache",
             "Pragma": "no-cache",
-            "Sec-Ch-Ua": 'Not.A/Brand";v="8", "Chromium";v="114", "Microsoft Edge";v="114',
+            "Sec-Ch-Ua": '"Not.A/Brand";v="8", "Chromium";v="114", "Microsoft Edge";v="114',
             "Sec-Ch-Ua-Mobile": "?0",
             "Sec-Ch-Ua-Platform": "Windows",
             "Sec-Fetch-Dest": "empty",
@@ -849,6 +849,14 @@ class ArloBackEnd(object):
             "x-user-device-id": self._user_device_id,
             "x-user-device-automation-name": "QlJPV1NFUg==",
             "x-user-device-type": "BROWSER",
+            "Cache-Control": "no-cache",
+            "Pragma": "no-cache",
+            "Sec-Ch-Ua": '"Not.A/Brand";v="8", "Chromium";v="114", "Microsoft Edge";v="114',
+            "Sec-Ch-Ua-Mobile": "?0",
+            "Sec-Ch-Ua-Platform": "Windows",
+            "Sec-Fetch-Dest": "empty",
+            "Sec-Fetch-Mode": "cors",
+            "Sec-Fetch-Site": "same-site",
         }
 
         # Validate it!
@@ -904,7 +912,8 @@ class ArloBackEnd(object):
             "Referer": REFERER_HOST,
             "SchemaVersion": "1",
             "User-Agent": self._user_agent,
-            "Sec-Ch-Ua": 'Not.A/Brand";v="8", "Chromium";v="114", "Microsoft Edge";v="114',
+            "Cache-Control": "no-cache",
+            "Sec-Ch-Ua": '"Not.A/Brand";v="8", "Chromium";v="114", "Microsoft Edge";v="114',
             "Sec-Ch-Ua-Mobile": "?0",
             "Sec-Ch-Ua-Platform": "Windows",
             "Sec-Fetch-Dest": "empty",
