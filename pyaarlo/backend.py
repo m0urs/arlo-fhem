@@ -734,7 +734,7 @@ class ArloBackEnd(object):
                 {
                     "email": self._arlo.cfg.username,
                     "password": to_b64(self._arlo.cfg.password),
-                    "language": "en",
+                    "language": "de",
                     "EnvSource": "prod",
                 },
                 headers,
