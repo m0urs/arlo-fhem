@@ -734,10 +734,10 @@ class ArloBackEnd(object):
             body = self.auth_post(
                 AUTH_PATH,
                 {
-                    "email": self._arlo.cfg.username,
-                    "password": to_b64(self._arlo.cfg.password),
-                    "language": "de",
-                    "EnvSource": "prod",
+                    '"EnvSource"': '"prod"', 
+                    '"email"': '"'+self._arlo.cfg.username+'"',
+                    '"password"': '"'+to_b64(self._arlo.cfg.password)+'"',
+                    '"language"': '"de"',
                 },
                 headers,
             )
