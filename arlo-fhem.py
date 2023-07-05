@@ -28,7 +28,7 @@ def loginToArlo(username, password, tfa_host, tfa_username, tfa_password, max_tr
     while count < max_tries:
         count = count + 1 
         print(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "- arlo-fhem - Trying to connect ",count," of ",max_tries)
-        arlo = pyaarlo.PyArlo(username=username, password=password,tfa_source='imap', tfa_type='email', tfa_host=tfa_host, tfa_username=tfa_username, tfa_password=tfa_password, synchronous_mode=False, refresh_devices_every=1,reconnect_every=90, stream_timeout=180, request_timeout=120, user_agent='!Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36 Edg/114.0.1823.58', backend='sse', mqtt_hostname_check=False, verbose_debug=True)
+        arlo = pyaarlo.PyArlo(username=username, password=password,tfa_source='imap', tfa_type='email', tfa_host=tfa_host, tfa_username=tfa_username, tfa_password=tfa_password, synchronous_mode=False, refresh_devices_every=1,reconnect_every=90, stream_timeout=180, request_timeout=120, user_agent='!Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36 Edg/114.0.1823.58', backend='mqtt', mqtt_hostname_check=False, verbose_debug=True)
         if arlo.is_connected:
             break
         if count == max_tries:
