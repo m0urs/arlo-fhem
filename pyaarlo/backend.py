@@ -48,6 +48,7 @@ class ArloBackEnd(object):
     _session_lock = threading.Lock()
     _session_info = {}
     _multi_location = False
+    _user_device_id = None
 
     def __init__(self, arlo):
 
@@ -63,6 +64,7 @@ class ArloBackEnd(object):
         self._resource_types = DEFAULT_RESOURCES
 
         self._load_session()
+        self._user_device_id = str(uuid.uuid4())
 
         # event thread stuff
         self._event_thread = None
@@ -149,6 +151,7 @@ class ArloBackEnd(object):
         raw=False,
         timeout=None,
         host=None,
+        authpost=False,
     ):
         if params is None:
             params = {}
@@ -160,9 +163,13 @@ class ArloBackEnd(object):
             with self._req_lock:
                 if host is None:
                     host = self._arlo.cfg.host
-                tid = self._transaction_id()
-                url = self._build_url(host + path, tid)
-                headers['x-transaction-id'] = tid
+                if authpost:
+                    url = host + path
+                else:
+                    tid = self._transaction_id()
+                    url = self._build_url(host + path, tid)
+                    headers['x-transaction-id'] = tid
+
                 self.vdebug("request-url={}".format(url))
                 self.vdebug("request-params=\n{}".format(pprint.pformat(params)))
                 self.vdebug("request-headers=\n{}".format(pprint.pformat(headers)))
@@ -545,7 +552,7 @@ class ArloBackEnd(object):
                 self._event_client = SSEClient(
                     self._arlo,
                     self._arlo.cfg.host + SUBSCRIBE_PATH,
-                    session=self._session,
+                    headers=self._headers(),
                     reconnect_cb=self._sse_reconnected,
                 )
             else:
@@ -557,7 +564,7 @@ class ArloBackEnd(object):
                 self._event_client = SSEClient(
                     self._arlo,
                     self._arlo.cfg.host + SUBSCRIBE_PATH,
-                    session=self._session,
+                    headers=self._headers(),
                     reconnect_cb=self._sse_reconnected,
                     timeout=self._arlo.cfg.stream_timeout,
                 )
@@ -666,19 +673,52 @@ class ArloBackEnd(object):
         self._sub_id = "subscriptions/" + self._web_id
         self._expires_in = body["expiresIn"]
 
-    def _auth(self):
-        headers = {
+    def _auth_headers(self):
+        return {
             "Accept": "application/json, text/plain, */*",
             "Accept-Encoding": "gzip, deflate, br",
             "Accept-Language": "en-GB,en;q=0.9,en-US;q=0.8",
+            "Cache-Control": "no-cache",
             "Origin": ORIGIN_HOST,
+            "Pragma": "no-cache",
             "Referer": REFERER_HOST,
+            # "Sec-Ch-Ua": '"Not.A/Brand";v="8", "Chromium";v="114", "Google Chrome";v="114"',
+            # "Sec-Ch-Ua-Mobile": "?0",
+            # "Sec-Ch-Ua-Platform": "Linux",
+            # "Sec-Fetch-Dest": "empty",
+            # "Sec-Fetch-Mode": "cors",
+            # "Sec-Fetch-Site": "same-site",
             "Source": "arloCamWeb",
             "User-Agent": self._user_agent,
-            "x-user-device-id": self._user_id,
-            "x-user-device-automation-name": "QlJPV1NFUg==",
-            "x-user-device-type": "BROWSER",
+            "X-User-Device-Automation-name": "QlJPV1NFUg==",
+            "X-User-Device-Id": self._user_device_id,
+            "X-User-Device-Type": "BROWSER",
         }
+
+    def _headers(self):
+        return {
+            "Accept": "application/json",
+            "Accept-Encoding": "gzip, deflate, br",
+            "Accept-Language": "en-GB,en;q=0.9,en-US;q=0.8",
+            "Auth-Version": "2",
+            "Authorization": self._token,
+            "Cache-Control": "no-cache",
+            "Content-Type": "application/json; charset=utf-8;",
+            "Origin": ORIGIN_HOST,
+            "Pragma": "no-cache",
+            "Referer": REFERER_HOST,
+            "SchemaVersion": "1",
+            # "Sec-Ch-Ua": '"Not.A/Brand";v="8", "Chromium";v="114", "Google Chrome";v="114"',
+            # "Sec-Ch-Ua-Mobile": "?0",
+            # "Sec-Ch-Ua-Platform": "Linux",
+            # "Sec-Fetch-Dest": "empty",
+            # "Sec-Fetch-Mode": "cors",
+            # "Sec-Fetch-Site": "same-site",
+            "User-Agent": self._user_agent,
+        }
+
+    def _auth(self):
+        headers = self._auth_headers()
 
         # Handle 1015 error
         attempt = 0
@@ -756,7 +796,12 @@ class ArloBackEnd(object):
                 self.debug(
                     "starting auth with {}".format(self._arlo.cfg.tfa_type)
                 )
-                body = self.auth_post(AUTH_START_PATH, {"factorId": factor_id}, headers)
+                payload = {
+                    "factorId": factor_id,
+                    "factorType": "BROWSER",
+                    "userId": self._user_id
+                }
+                body = self.auth_post(AUTH_START_PATH, payload, headers)
                 if body is None:
                     self._arlo.error("2fa startAuth failed")
                     return False
@@ -786,7 +831,12 @@ class ArloBackEnd(object):
                 self.debug(
                     "starting auth with {}".format(self._arlo.cfg.tfa_type)
                 )
-                body = self.auth_post(AUTH_START_PATH, {"factorId": factor_id}, headers)
+                payload = {
+                    "factorId": factor_id,
+                    "factorType": "",
+                    "userId": self._user_id
+                }
+                body = self.auth_post(AUTH_START_PATH, payload, headers)
                 if body is None:
                     self._arlo.error("2fa startAuth failed")
                     return False
@@ -817,19 +867,8 @@ class ArloBackEnd(object):
         return True
 
     def _validate(self):
-        headers = {
-            "Accept": "application/json, text/plain, */*",
-            "Accept-Encoding": "gzip, deflate, br",
-            "Accept-Language": "en-GB,en;q=0.9,en-US;q=0.8",
-            "Authorization": self._token64,
-            "Origin": ORIGIN_HOST,
-            "Referer": REFERER_HOST,
-            "User-Agent": self._user_agent,
-            "Source": "arloCamWeb",
-            "x-user-device-id": self._user_id,
-            "x-user-device-automation-name": "QlJPV1NFUg==",
-            "x-user-device-type": "BROWSER",
-        }
+        headers = self._auth_headers()
+        headers["Authorization"] = self._token64
 
         # Validate it!
         validated = self.auth_get(
@@ -857,7 +896,7 @@ class ArloBackEnd(object):
         # If token looks invalid we'll try the whole process.
         get_new_session = days_until(self._expires_in) < 2
         if get_new_session:
-            self._session = cloudscraper.create_scraper()
+            self._session = cloudscraper.create_scraper(ecdhCurve='secp384r1')
             self.debug("oldish session, getting a new one")
             if not self._auth():
                 return False
@@ -872,19 +911,7 @@ class ArloBackEnd(object):
         self._save_session()
 
         # update sessions headers
-        headers = {
-            "Accept": "application/json",
-            "Accept-Encoding": "gzip, deflate, br",
-            "Accept-Language": "en-GB,en;q=0.9,en-US;q=0.8",
-            "Auth-Version": "2",
-            "Authorization": self._token,
-            "Content-Type": "application/json; charset=utf-8;",
-            "Origin": ORIGIN_HOST,
-            "Pragma": "no-cache",
-            "Referer": REFERER_HOST,
-            "SchemaVersion": "1",
-            "User-Agent": self._user_agent,
-        }
+        headers = self._headers()
         self._session.headers.update(headers)
 
         # Grab a session. Needed for new session and used to check existing
@@ -1076,14 +1103,14 @@ class ArloBackEnd(object):
 
     def auth_post(self, path, params=None, headers=None, raw=False, timeout=None):
         return self._request(
-            path, "POST", params, headers, False, raw, timeout, self._arlo.cfg.auth_host
+            path, "POST", params, headers, False, raw, timeout, self._arlo.cfg.auth_host, authpost=True
         )
 
     def auth_get(
         self, path, params=None, headers=None, stream=False, raw=False, timeout=None
     ):
         return self._request(
-            path, "GET", params, headers, stream, raw, timeout, self._arlo.cfg.auth_host
+            path, "GET", params, headers, stream, raw, timeout, self._arlo.cfg.auth_host, authpost=True
         )
 
     @property
