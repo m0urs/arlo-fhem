@@ -1,3 +1,5 @@
+1.1.12a Fix:        Make sure thyt ".py" file runs with most current installed python version
+
 1.1.12: Fix:        https://github.com/m0urs/arlo-fhem/issues/42
 
 1.1.11: Fix:        https://github.com/m0urs/arlo-fhem/issues/39
