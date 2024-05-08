@@ -58,7 +58,7 @@ def getDeviceFromName(name, devices):
 print(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "- arlo-fhem - version", VERSION)
 
 # set up logging, change ERROR or INFO to DEBUG for a *lot* more information
-logging.basicConfig(level=logging.DEBUG,
+logging.basicConfig(level=logging.ERROR,
                     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
                     filename='debug.log')
 _LOGGER = logging.getLogger('arlo-fhem')
