@@ -1,11 +1,11 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 # arlo-fhem.py / Arlo Daemon for FHEM
 # https://github.com/m0urs/arlo-fhem
 # Based on https://github.com/twrecked/pyaarlo
 # Michael Urspringer
 
-VERSION = "1.1.12a"
+VERSION = "1.1.12b"
 
 import pyaarlo
 import argparse
