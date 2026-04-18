@@ -1,8 +1,12 @@
 import platform
 import tempfile
+import os
+from urllib.parse import urlparse
+
 from .constant import (
     DEFAULT_AUTH_HOST,
     DEFAULT_HOST,
+    DEFAULT_MQTT_PORT,
     MQTT_HOST,
     PRELOAD_DAYS,
     TFA_CONSOLE_SOURCE,
@@ -10,6 +14,7 @@ from .constant import (
     TFA_DELAY,
     TFA_EMAIL_TYPE,
     TFA_RETRIES,
+    ECDH_CURVES
 )
 
 
@@ -31,10 +36,26 @@ class ArloCfg(object):
         self._arlo = arlo
         self._kw = kwargs
         self._arlo.debug("config: loaded")
-        if platform.system() == "Windows":
-            self._storage_dir = tempfile.gettempdir() + r"\.aarlo"
+        self._update_backend = False
+        strplatform = platform.system()
+        termux_dir = "/data/data/com.termux/files/home"
+        if strplatform == "Windows":
+            self._storage_dir = os.path.join(tempfile.gettempdir(), ".aarlo")
+        elif os.path.exists(termux_dir):
+            self._storage_dir = self._kw.get("storage_dir", os.path.join(termux_dir, ".aarlo"))
         else:
             self._storage_dir = self._kw.get("storage_dir", "/tmp/.aarlo")
+
+    def _remove_scheme(self, host):
+        bits = host.split("://")
+        if len(bits) > 1:
+            return bits[1]
+        return host
+
+    def _add_scheme(self, host, scheme='https'):
+        if "://" in host:
+            return host
+        return f"{scheme}://{host}"
 
     @property
     def storage_dir(self):
@@ -54,15 +75,30 @@ class ArloCfg(object):
 
     @property
     def host(self):
-        return self._kw.get("host", DEFAULT_HOST)
+        return self._add_scheme(self._kw.get("host", DEFAULT_HOST), "https")
 
     @property
     def auth_host(self):
-        return self._kw.get("auth_host", DEFAULT_AUTH_HOST)
+        return self._add_scheme(self._kw.get("auth_host", DEFAULT_AUTH_HOST), "https")
 
     @property
     def mqtt_host(self):
-        return self._kw.get("mqtt_host", MQTT_HOST)
+        return self._remove_scheme(self._kw.get("mqtt_host", MQTT_HOST))
+
+    @property
+    def mqtt_port(self):
+        return self._kw.get("mqtt_port", DEFAULT_MQTT_PORT)
+
+    def update_mqtt_from_url(self, url):
+        if self._update_backend or self.event_backend == "auto":
+            self._update_backend = True
+            url = urlparse(url)
+            if url.scheme == "wss":
+                self._kw["backend"] = 'sse'
+            else:
+                self._kw["backend"] = 'mqtt'
+                self._kw["mqtt_host"] = url.hostname
+                self._kw["mqtt_port"] = url.port
 
     @property
     def mqtt_hostname_check(self):
@@ -173,16 +209,20 @@ class ArloCfg(object):
 
     @property
     def tfa_host(self):
-        h = self._kw.get("tfa_host", TFA_DEFAULT_HOST).split(":")
-        return h[0]
+        host = self._remove_scheme(self._kw.get("tfa_host", TFA_DEFAULT_HOST))
+        return host.split(":")[0]
+
+    def tfa_host_with_scheme(self, scheme="https"):
+        host = self._add_scheme(self._kw.get("tfa_host", TFA_DEFAULT_HOST), scheme)
+        return ":".join(host.split(":")[:2])
 
     @property
     def tfa_port(self):
-        h = self._kw.get("tfa_host", TFA_DEFAULT_HOST).split(":")
-        if len(h) == 1:
+        host = self._remove_scheme(self._kw.get("tfa_host", TFA_DEFAULT_HOST))
+        bits = host.split(":")
+        if len(bits) == 1:
             return 993
-        else:
-            return h[1]
+        return int(bits[1])
 
     @property
     def tfa_username(self):
@@ -223,6 +263,10 @@ class ArloCfg(object):
     @property
     def save_session(self):
         return self._kw.get("save_session", True)
+
+    @property
+    def cookies_file(self):
+        return self.storage_dir + "/cookies.txt"
 
     @property
     def dump_file(self):
@@ -271,3 +315,15 @@ class ArloCfg(object):
         if self._kw.get("default_ciphers", False):
             return 'DEFAULT'
         return self._kw.get("cipher_list", "")
+
+    @property
+    def ecdh_curves(self):
+        curve = self._kw.get("ecdh_curve", None)
+        if curve in ECDH_CURVES:
+            # Moves user-selected curve to front of list
+            ECDH_CURVES.insert(0, ECDH_CURVES.pop(ECDH_CURVES.index(curve)))
+        return ECDH_CURVES
+
+    @property
+    def send_source(self):
+        return self._kw.get("send_source", False)

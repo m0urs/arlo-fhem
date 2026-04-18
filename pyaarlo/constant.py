@@ -3,6 +3,7 @@ DEFAULT_HOST = "https://myapi.arlo.com"
 ORIGIN_HOST = "https://my.arlo.com"
 REFERER_HOST = "https://my.arlo.com/"
 MQTT_HOST = "mqtt-cluster.arloxcld.com"
+DEFAULT_MQTT_PORT = 443
 
 DEVICES_PATH = "/hmsweb/v2/users/devices"
 DEFINITIONS_PATH = "/hmsweb/users/automation/definitions"
@@ -40,7 +41,9 @@ AUTH_PATH = "/api/auth"
 AUTH_START_PATH = "/api/startAuth"
 AUTH_FINISH_PATH = "/api/finishAuth"
 AUTH_GET_FACTORS = "/api/getFactors"
+AUTH_GET_FACTORID = "/api/getFactorId"
 AUTH_VALIDATE_PATH = "/api/validateAccessToken"
+AUTH_START_PAIRING = "/api/startPairingFactor"
 
 TFA_CONSOLE_SOURCE = "console"
 TFA_IMAP_SOURCE = "imap"
@@ -95,6 +98,7 @@ MOTION_DETECTED_KEY = "motionDetected"
 MOTION_STATE_KEY = "motionState"
 MOTION_ENABLED_KEY = "motionSetupModeEnabled"
 MOTION_SENS_KEY = "motionSetupModeSensitivity"
+MQTT_URL_KEY = "mqttUrl"
 POWER_SAVE_KEY = "powerSaveMode"
 PRIVACY_KEY = "privacyActive"
 LIGHT_BRIGHTNESS_KEY = "lightBrightness"
@@ -269,41 +273,66 @@ MODEL_HD = "VMC3030"
 MODEL_PRO_2 = "VMC4030"
 MODEL_PRO_3 = "VMC4040"
 MODEL_PRO_4 = "VMC4041"
+MODEL_PRO_5 = "VMC4060"
 MODEL_PRO_3_FLOODLIGHT = "FB1001"
 MODEL_ULTRA = "VMC5040"
 MODEL_BABY = "ABC1000"
-MODEL_ESSENTIAL = "VMC2030"
+
+MODEL_ESSENTIAL_SPOTLIGHT = "VMC2030"
+MODEL_ESSENTIAL_XL_SPOTLIGHT = "VMC2032"
+
 MODEL_ESSENTIAL_INDOOR = "VMC2040"
+MODEL_ESSENTIAL_INDOOR_GEN2_2K = "VMC3060"
+MODEL_ESSENTIAL_INDOOR_GEN2_HD = "VMC2060"
+
+MODEL_ESSENTIAL_OUTDOOR_GEN2_2K = "VMC3050"
+MODEL_ESSENTIAL_OUTDOOR_GEN2_HD = "VMC2050"
+MODEL_ESSENTIAL_XL_OUTDOOR_GEN2_2K = "VMC3052"
+MODEL_ESSENTIAL_XL_OUTDOOR_GEN2_HD = "VMC2052"
+
+MODEL_ESSENTIAL_VIDEO_DOORBELL = "AVD2001"
 
 MODEL_WIRED_VIDEO_DOORBELL = "AVD1001"
-MODEL_WIREFREE_VIDEO_DOORBELL = "AVD2001"
+MODEL_WIRED_VIDEO_DOORBELL_GEN2_2K = "AVD4001"
+MODEL_WIRED_VIDEO_DOORBELL_GEN2_HD = "AVD3001"
 
 MODEL_GO = "VML4030"
-
-MODEL_ALL_IN_1_SENSOR = "MS1001"
 MODEL_GO_2 = "VML2030"
 
+MODEL_ALL_IN_1_SENSOR = "MS1001"
+
+# The arlo agents are up the air. "arlo001" was recently deprecated so we're
+# trying a new one.
 USER_AGENTS = {
     "arlo":
+        "(iPhone15,2 18_1_1) iOS Arlo 5.4.3",
+    "arlo001":
         "Mozilla/5.0 (iPhone; CPU iPhone OS 11_1_2 like Mac OS X) "
         "AppleWebKit/604.3.5 (KHTML, like Gecko) Mobile/15B202 NETGEAR/v1 "
         "(iOS Vuezone)",
     "iphone":
-        "Mozilla/5.0 (iPhone; CPU iPhone OS 13_1_3 like Mac OS X) "
-        "AppleWebKit/605.1.15 (KHTML, like Gecko) Version/13.0.1 Mobile/15E148 Safari/604.1",
+        "Mozilla/5.0 (iPhone; CPU iPhone OS 17_7_2 like Mac OS X) "
+        "AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.3 Mobile/15E148 Safari/604.1",
     "ipad":
-        "Mozilla/5.0 (iPad; CPU OS 12_2 like Mac OS X) "
-        "AppleWebKit/605.1.15 (KHTML, like Gecko) Version/12.1 Mobile/15E148 Safari/604.1",
+        "Mozilla/5.0 (iPad; CPU OS 17_7_2 like Mac OS X) "
+        "AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.3 Mobile/15E148 Safari/604.1",
     "mac":
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_6) "
-        "AppleWebKit/605.1.15 (KHTML, like Gecko) Version/11.1.2 Safari/605.1.15",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_7_3) "
+        "AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.3 Safari/605.1.15",
     "firefox":
-        "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:85.0) "
-        "Gecko/20100101 Firefox/85.0",
+        "Mozilla/5.0 (X11; Linux i686; rv:135.0) "
+        "Gecko/20100101 Firefox/135.0",
     "linux":
         "Mozilla/5.0 (X11; Linux x86_64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36"
+        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36",
+    "android":
+        "Mozilla/5.0 (Linux; U; Android 8.1.0; zh-cn; PACM00 Build/O11019) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/57.0.2987.132 MQQBrowser/8.8 Mobile Safari/537.36"
 }
 
 CERT_BEGIN = '-----BEGIN CERTIFICATE-----\n'
 CERT_END = '-----END CERTIFICATE-----\n'
+
+ECDH_CURVES = ['secp384r1', 'prime256v1']
+
+VALID_DEVICE_STATES = ["provisioned", "synced"]

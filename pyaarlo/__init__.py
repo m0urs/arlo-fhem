@@ -15,25 +15,32 @@ from .constant import (
     BLANK_IMAGE,
     DEVICES_PATH,
     FAST_REFRESH_INTERVAL,
-    INITIAL_REFRESH_DELAY,
-    MEDIA_LIBRARY_DELAY,
-    MODEL_ESSENTIAL,
+    MODEL_ESSENTIAL_SPOTLIGHT,
+    MODEL_ESSENTIAL_XL_SPOTLIGHT,
     MODEL_ESSENTIAL_INDOOR,
+    MODEL_ESSENTIAL_INDOOR_GEN2_2K,
+    MODEL_ESSENTIAL_INDOOR_GEN2_HD,
     MODEL_PRO_3_FLOODLIGHT,
     MODEL_PRO_4,
+    MODEL_PRO_5,
     MODEL_WIRED_VIDEO_DOORBELL,
-    MODEL_WIREFREE_VIDEO_DOORBELL,
+    MODEL_WIRED_VIDEO_DOORBELL_GEN2_HD,
+    MODEL_WIRED_VIDEO_DOORBELL_GEN2_2K,
+    MODEL_ESSENTIAL_VIDEO_DOORBELL,
     MODEL_GO,
     MODEL_GO_2,
+    MODEL_ESSENTIAL_XL_OUTDOOR_GEN2_2K,
+    MODEL_ESSENTIAL_XL_OUTDOOR_GEN2_HD,
+    MODEL_ESSENTIAL_OUTDOOR_GEN2_2K,
+    MODEL_ESSENTIAL_OUTDOOR_GEN2_HD,
     PING_CAPABILITY,
-    REFRESH_CAMERA_DELAY,
-    RESOURCE_CAPABILITY,
     SLOW_REFRESH_INTERVAL,
     TOTAL_BELLS_KEY,
     TOTAL_CAMERAS_KEY,
     TOTAL_LIGHTS_KEY,
     LOCATIONS_PATH_FORMAT,
     LOCATIONS_EMERGENCY_PATH,
+    VALID_DEVICE_STATES,
 )
 from .doorbell import ArloDoorBell
 from .light import ArloLight
@@ -45,7 +52,7 @@ from .util import time_to_arlotime
 
 _LOGGER = logging.getLogger("pyaarlo")
 
-__version__ = "0.8.0b10"
+__version__ = "0.8.0.19"
 
 
 class PyArlo(object):
@@ -129,6 +136,9 @@ class PyArlo(object):
     * **mqtt_host** - specify the mqtt host to use, default mqtt-cluster.arloxcld.com
     * **mqtt_hostname_check** - disable MQTT host SSL certificate checking, default True
     * **mqtt_transport** - specify either `websockets` or `tcp`, default `tcp`
+    * **ecdh_curve** - Sets initial ecdhCurve for Cloudscraper. Available options are `prime256v1`
+      and `secp384r1`. Backend will try all options if login fails.
+    * **send_source** - Add a `Source` item to the authentication header, default is False.
 
     **Attributes**
 
@@ -169,17 +179,19 @@ class PyArlo(object):
         self._be = ArloBackEnd(self)
         self._ml = ArloMediaLibrary(self)
 
-        # Failed to login, then stop now!
-        if not self._be.is_connected:
-            return
-
-        self._lock = threading.Condition()
+        # Make sure they are empty.
         self._locations = []
         self._bases = []
         self._cameras = []
         self._lights = []
         self._doorbells = []
         self._sensors = []
+
+        # Failed to login, then stop now!
+        if not self._be.is_connected:
+            return
+
+        self._lock = threading.Condition()
 
         # On day flip we do extra work, record today.
         self._today = datetime.date.today()
@@ -205,13 +217,15 @@ class PyArlo(object):
         for device in self._devices:
             dname = device.get("deviceName")
             dtype = device.get("deviceType")
-            if device.get("state", "unknown") != "provisioned":
-                self.info("skipping " + dname + ": state unknown")
+            device_state = device.get("state", "unknown").lower()
+            if device_state not in VALID_DEVICE_STATES:
+                self.info(f"skipping {dname}: state is {device_state}")
                 continue
 
             # This needs it's own code now... Does no parent indicate a base station???
             if (
                 dtype == "basestation"
+                or dtype == "arlobridge"
                 or dtype.lower() == 'hub'
                 or device.get("modelId") == "ABC1000"
                 or device.get("modelId").startswith(MODEL_GO)
@@ -219,29 +233,43 @@ class PyArlo(object):
                 or dtype == "arloqs"
             ):
                 self._bases.append(ArloBase(dname, self, device))
+
             # Newer devices can connect directly to wifi and can be its own base station,
             # it can also be assigned to a real base station
-            if (
-                device.get("modelId").startswith(MODEL_WIRED_VIDEO_DOORBELL)
-                or device.get("modelId").startswith(MODEL_PRO_3_FLOODLIGHT)
-                or device.get("modelId").startswith(MODEL_PRO_4)
-                or device.get("modelId").startswith(MODEL_ESSENTIAL)
-                or device.get("modelId").startswith(MODEL_ESSENTIAL_INDOOR)
-                or device.get("modelId").startswith(MODEL_WIREFREE_VIDEO_DOORBELL)
-                or device.get("modelId").startswith(MODEL_GO_2)
-            ):
+            if device.get("modelId").startswith((
+                    MODEL_WIRED_VIDEO_DOORBELL,
+                    MODEL_PRO_3_FLOODLIGHT,
+                    MODEL_PRO_4,
+                    MODEL_PRO_5,
+                    MODEL_ESSENTIAL_SPOTLIGHT,
+                    MODEL_ESSENTIAL_XL_SPOTLIGHT,
+                    MODEL_ESSENTIAL_INDOOR,
+                    MODEL_ESSENTIAL_INDOOR_GEN2_2K,
+                    MODEL_ESSENTIAL_INDOOR_GEN2_HD,
+                    MODEL_ESSENTIAL_XL_OUTDOOR_GEN2_2K,
+                    MODEL_ESSENTIAL_XL_OUTDOOR_GEN2_HD,
+                    MODEL_ESSENTIAL_OUTDOOR_GEN2_2K,
+                    MODEL_ESSENTIAL_OUTDOOR_GEN2_HD,
+                    MODEL_WIRED_VIDEO_DOORBELL_GEN2_HD,
+                    MODEL_WIRED_VIDEO_DOORBELL_GEN2_2K,
+                    MODEL_ESSENTIAL_VIDEO_DOORBELL,
+                    MODEL_GO_2
+            )):
                 parent_id = device.get("parentId", None)
                 if parent_id is None or parent_id == device.get("deviceId", None):
                     self._bases.append(ArloBase(dname, self, device))
-            if dtype == "arlobridge":
-                self._bases.append(ArloBase(dname, self, device))
+
             if (
                 dtype == "camera"
                 or dtype == "arloq"
                 or dtype == "arloqs"
-                or device.get("modelId").startswith(MODEL_GO)
-                or device.get("modelId").startswith(MODEL_WIRED_VIDEO_DOORBELL)
-                or device.get("modelId").startswith(MODEL_WIREFREE_VIDEO_DOORBELL)
+                or device.get("modelId").startswith((
+                    MODEL_GO,
+                    MODEL_WIRED_VIDEO_DOORBELL,
+                    MODEL_WIRED_VIDEO_DOORBELL_GEN2_HD,
+                    MODEL_WIRED_VIDEO_DOORBELL_GEN2_2K,
+                    MODEL_ESSENTIAL_VIDEO_DOORBELL
+                ))
             ):
                 self._cameras.append(ArloCamera(dname, self, device))
             if dtype == "doorbell":
@@ -569,7 +597,7 @@ class PyArlo(object):
 
     @property
     def blank_image(self):
-        """Return a binaryy representation of a blank image.
+        """Return a binary representation of a blank image.
 
         :return: A bytes representation of a blank image.
         :rtype: bytearray
