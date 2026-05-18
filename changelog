@@ -1,3 +1,70 @@
+0.8.0.19
+  Update media.py to fix date issue.
+0.8.0.18
+  Fix a 3.7 run issue.
+0.8.0.17
+  Fix pypi
+0.8.0.16
+  Fix push mechanism
+0.8.0.15
+  Rewrite the authentication code to support the "trusted browser" mechanism
+  Catch remote closing of sse client better
+0.8.0.14
+  Update user agents
+0.8.0.13
+  Update user agents
+0.8.0.12
+  Squash "browser not trusted" error. It's part of the normal startup
+  process when you need to provide authentication.
+0.8.0.11
+  Fix ping issue for new cameras. The code was creating a basestation
+  and pinging it.
+0.8.0.10
+  Added some missing cameras.
+   Essential Indoor Gen2 HD
+   Essential Outdoor Gen2 HD
+   Essential Outdoor Gen2 2K
+   Essential XL Outdoor Gen2 HD
+   Essential XL Spotlight
+  Renamed some constants.
+0.8.0.9
+  Fix setup.py [thanks @jamesoff]
+0.8.0.8
+  Better login error handling and reporting.
+  Added slugified naming option
+0.8.0.7
+  Add Essential Indoor Gen 2 support.
+0.8.0.6
+  Improved MQTT support. If you set the backend to auto it will read the
+  MQTT server address and port from a key passed in the session packet.
+  The previous version was too simple.
+0.8.0.5
+  Improved cloudfare avoidance.
+  Improved MQTT support. If you set the backend to auto it will read the
+  MQTT server address and port from a key passed in the session packet.
+0.8.0.4
+  Tweaked Gen2 doorbell support.
+0.8.0.3
+  Add Arlo Essential XL support (thank @mzsanford)
+  Add Gen2 doorbell support.
+  Renamed Essential doorbell.
+0.8.0.2
+  Handle 'synced' device state.
+0.8.0.1
+  Better Yahoo IMAP handling. It will now better parse out the emails and
+  better keep track of the used IDs.
+0.8.0.0
+  Try multiple EDHC curves
+  Allow `Source: arloWebCam` header entry to be turned on and off
+
+0.8.0b12:
+  Add Arlo Pro 5 support
+  Allow cloudflare curves to be set
+  Fix scheme in cfg
+0.8.0b11:
+  Latest arlo/cloudflare work arounds.
+  Fix scheme in cgf
+  Add host unit tests
 0.8.0b10:
   Add schemaversion back.
 0.8.0b9:

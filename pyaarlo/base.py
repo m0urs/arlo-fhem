@@ -18,20 +18,27 @@ from .constant import (
     MODE_NAME_TO_ID_KEY,
     MODE_UPDATE_INTERVAL,
     MODEL_BABY,
-    MODEL_ESSENTIAL,
+    MODEL_ESSENTIAL_OUTDOOR_GEN2_2K,
+    MODEL_ESSENTIAL_OUTDOOR_GEN2_HD,
+    MODEL_ESSENTIAL_SPOTLIGHT,
+    MODEL_ESSENTIAL_VIDEO_DOORBELL,
+    MODEL_ESSENTIAL_XL_OUTDOOR_GEN2_2K,
+    MODEL_ESSENTIAL_XL_OUTDOOR_GEN2_HD,
+    MODEL_ESSENTIAL_XL_SPOTLIGHT,
     MODEL_GO,
-    MODEL_HUB,
     MODEL_PRO_3_FLOODLIGHT,
     MODEL_PRO_4,
+    MODEL_PRO_5,
     MODEL_WIRED_VIDEO_DOORBELL,
-    MODEL_WIREFREE_VIDEO_DOORBELL,
+    MODEL_WIRED_VIDEO_DOORBELL_GEN2_2K,
+    MODEL_WIRED_VIDEO_DOORBELL_GEN2_HD,
     PING_CAPABILITY,
     RESOURCE_CAPABILITY,
     RESTART_PATH,
     SCHEDULE_KEY,
     SIREN_STATE_KEY,
     TEMPERATURE_KEY,
-    TIMEZONE_KEY
+    TIMEZONE_KEY,
 )
 from .device import ArloDevice
 from .util import time_to_arlotime
@@ -562,9 +569,20 @@ class ArloBase(ArloDevice):
                 return True
 
             # Don't ping these devices ever.
-            if self.model_id.startswith(
-                    (MODEL_WIREFREE_VIDEO_DOORBELL, MODEL_ESSENTIAL, MODEL_PRO_3_FLOODLIGHT, MODEL_PRO_4)
-            ):
+            if self.model_id.startswith((
+                    MODEL_ESSENTIAL_OUTDOOR_GEN2_2K,
+                    MODEL_ESSENTIAL_OUTDOOR_GEN2_HD,
+                    MODEL_ESSENTIAL_SPOTLIGHT,
+                    MODEL_ESSENTIAL_VIDEO_DOORBELL,
+                    MODEL_ESSENTIAL_XL_OUTDOOR_GEN2_2K,
+                    MODEL_ESSENTIAL_XL_OUTDOOR_GEN2_HD,
+                    MODEL_ESSENTIAL_XL_SPOTLIGHT,
+                    MODEL_PRO_3_FLOODLIGHT,
+                    MODEL_PRO_4,
+                    MODEL_PRO_5,
+                    MODEL_WIRED_VIDEO_DOORBELL_GEN2_2K,
+                    MODEL_WIRED_VIDEO_DOORBELL_GEN2_HD,
+            )):
                 return False
 
             # We have to be careful pinging some base stations because it can rapidly
@@ -582,9 +600,11 @@ class ArloBase(ArloDevice):
 
         if cap in (RESOURCE_CAPABILITY,):
             # Not all devices need (or want) to get their resources queried.
-            if self.model_id.startswith(
-                    (MODEL_WIREFREE_VIDEO_DOORBELL, MODEL_ESSENTIAL)
-            ):
+            if self.model_id.startswith((
+                    MODEL_ESSENTIAL_VIDEO_DOORBELL,
+                    MODEL_ESSENTIAL_SPOTLIGHT,
+                    MODEL_ESSENTIAL_XL_SPOTLIGHT,
+            )):
                 return False
             return True
         return super().has_capability(cap)

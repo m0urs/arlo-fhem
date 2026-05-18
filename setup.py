@@ -11,7 +11,7 @@ def readme():
 setup(
 
     name='pyaarlo',
-    version='0.8.0b10',
+    version='0.8.0.19',
     packages=['pyaarlo'],
 
     python_requires='>=3.7',
@@ -22,7 +22,8 @@ setup(
         'unidecode',
         'cloudscraper>=1.2.71',
         'paho-mqtt',
-        'cryptography'
+        'cryptography',
+        'python-slugify'
     ],
 
     author='Steve Herrell',

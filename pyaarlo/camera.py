@@ -41,15 +41,25 @@ from .constant import (
     MEDIA_UPLOAD_KEYS,
     MIRROR_KEY,
     MODEL_BABY,
-    MODEL_ESSENTIAL,
+    MODEL_ESSENTIAL_SPOTLIGHT,
+    MODEL_ESSENTIAL_XL_SPOTLIGHT,
     MODEL_ESSENTIAL_INDOOR,
+    MODEL_ESSENTIAL_INDOOR_GEN2_2K,
+    MODEL_ESSENTIAL_INDOOR_GEN2_HD,
+    MODEL_ESSENTIAL_XL_OUTDOOR_GEN2_2K,
+    MODEL_ESSENTIAL_XL_OUTDOOR_GEN2_HD,
+    MODEL_ESSENTIAL_OUTDOOR_GEN2_2K,
+    MODEL_ESSENTIAL_OUTDOOR_GEN2_HD,
     MODEL_PRO_2,
     MODEL_PRO_3,
     MODEL_PRO_3_FLOODLIGHT,
     MODEL_PRO_4,
+    MODEL_PRO_5,
     MODEL_ULTRA,
     MODEL_WIRED_VIDEO_DOORBELL,
-    MODEL_WIREFREE_VIDEO_DOORBELL,
+    MODEL_WIRED_VIDEO_DOORBELL_GEN2_HD,
+    MODEL_WIRED_VIDEO_DOORBELL_GEN2_2K,
+    MODEL_ESSENTIAL_VIDEO_DOORBELL,
     MODEL_GO,
     MOTION_DETECTED_KEY,
     MOTION_SENS_KEY,
@@ -309,6 +319,38 @@ class ArloCamera(ArloChildDevice):
         )
         if response is not None:
             self._mark_as_idle()
+
+    def _get_stream_url(self, starting_for, user_agent=None):
+        """Getting the stream URL without starting local streaming."""
+        body = {
+            "action": "get",
+            "from": self.web_id,
+            "properties": {
+                "cameraId": self.device_id,
+            },
+            "publishResponse": True,
+            "responseUrl": "",
+            "resource": self.resource_id,
+            "to": self.parent_id,
+            "transId": self._arlo.be.gen_trans_id(),
+        }
+
+        headers = {"xcloudId": self.xcloud_id}
+        if user_agent is not None:
+            headers["User-Agent"] = self._arlo.be.user_agent(user_agent)
+
+        self._stream_url = self._arlo.be.post(STREAM_START_PATH, body, headers=headers)
+        if self._stream_url is not None:
+            if not self.has_any_local_users:
+                with self._lock:
+                    self._local_users.add(starting_for)
+                    self._dump_activities("_get_stream_url")
+
+            self._stream_url = self._stream_url["url"].replace("rtsp://", "rtsps://")
+            self.debug("url={}".format(self._stream_url))
+        else:
+            self.debug(f"No stream url for {self.name}")
+        return self._stream_url
 
     def _start_stream(self, starting_for, user_agent=None):
         with self._lock:
@@ -926,6 +968,11 @@ class ArloCamera(ArloChildDevice):
         if self.was_recently_active:
             return "recently active"
         return super().state
+    
+    def get_stream_url(self, user_agent=None):
+        """Getting the stream URL without starting local streaming."""
+        
+        return self._get_stream_url("remote", user_agent)
 
     def get_stream(self, user_agent=None):
         """Start a stream and return the URL for it.
@@ -1356,7 +1403,11 @@ class ArloCamera(ArloChildDevice):
 
     def has_capability(self, cap):
         if cap in (BATTERY_KEY,):
-            if self.model_id.startswith(MODEL_ESSENTIAL_INDOOR):
+            if self.model_id.startswith((
+                    MODEL_ESSENTIAL_INDOOR,
+                    MODEL_ESSENTIAL_INDOOR_GEN2_2K,
+                    MODEL_ESSENTIAL_INDOOR_GEN2_HD,
+            )):
                 return False
             else:
                 return True
@@ -1365,39 +1416,62 @@ class ArloCamera(ArloChildDevice):
         if cap in (LAST_CAPTURE_KEY, CAPTURED_TODAY_KEY, RECENT_ACTIVITY_KEY):
             return True
         if cap in (AUDIO_DETECTED_KEY,):
-            if self.model_id.startswith(
-                (
-                    MODEL_ESSENTIAL,
+            if self.model_id.startswith((
+                    MODEL_ESSENTIAL_SPOTLIGHT,
+                    MODEL_ESSENTIAL_XL_SPOTLIGHT,
                     MODEL_ESSENTIAL_INDOOR,
+                    MODEL_ESSENTIAL_INDOOR_GEN2_2K,
+                    MODEL_ESSENTIAL_INDOOR_GEN2_HD,
+                    MODEL_ESSENTIAL_XL_OUTDOOR_GEN2_2K,
+                    MODEL_ESSENTIAL_XL_OUTDOOR_GEN2_HD,
+                    MODEL_ESSENTIAL_OUTDOOR_GEN2_2K,
+                    MODEL_ESSENTIAL_OUTDOOR_GEN2_HD,
                     MODEL_PRO_2,
                     MODEL_PRO_3,
                     MODEL_PRO_3_FLOODLIGHT,
                     MODEL_PRO_4,
+                    MODEL_PRO_5,
                     MODEL_ULTRA,
                     MODEL_GO,
                     MODEL_BABY,
-                )
-            ):
+            )):
                 return True
             if self.device_type.startswith("arloq"):
                 return True
         if cap in (SIREN_STATE_KEY,):
-            if self.model_id.startswith(
-                (
-                    MODEL_ESSENTIAL,
+            if self.model_id.startswith((
+                    MODEL_ESSENTIAL_SPOTLIGHT,
+                    MODEL_ESSENTIAL_XL_SPOTLIGHT,
                     MODEL_ESSENTIAL_INDOOR,
+                    MODEL_ESSENTIAL_INDOOR_GEN2_2K,
+                    MODEL_ESSENTIAL_INDOOR_GEN2_HD,
+                    MODEL_ESSENTIAL_XL_OUTDOOR_GEN2_2K,
+                    MODEL_ESSENTIAL_XL_OUTDOOR_GEN2_HD,
+                    MODEL_ESSENTIAL_OUTDOOR_GEN2_2K,
+                    MODEL_ESSENTIAL_OUTDOOR_GEN2_HD,
                     MODEL_PRO_3,
                     MODEL_PRO_3_FLOODLIGHT,
                     MODEL_PRO_4,
+                    MODEL_PRO_5,
                     MODEL_ULTRA,
-                    MODEL_WIREFREE_VIDEO_DOORBELL,
-                )
-            ):
+                    MODEL_WIRED_VIDEO_DOORBELL_GEN2_HD,
+                    MODEL_WIRED_VIDEO_DOORBELL_GEN2_2K,
+                    MODEL_ESSENTIAL_VIDEO_DOORBELL,
+            )):
                 return True
         if cap in (SPOTLIGHT_KEY,):
-            if self.model_id.startswith(
-                (MODEL_ESSENTIAL, MODEL_PRO_3, MODEL_PRO_4, MODEL_ULTRA)
-            ):
+            if self.model_id.startswith((
+                    MODEL_ESSENTIAL_SPOTLIGHT,
+                    MODEL_ESSENTIAL_XL_SPOTLIGHT,
+                    MODEL_ESSENTIAL_XL_OUTDOOR_GEN2_2K,
+                    MODEL_ESSENTIAL_XL_OUTDOOR_GEN2_HD,
+                    MODEL_ESSENTIAL_OUTDOOR_GEN2_2K,
+                    MODEL_ESSENTIAL_OUTDOOR_GEN2_HD,
+                    MODEL_PRO_3,
+                    MODEL_PRO_4,
+                    MODEL_PRO_5,
+                    MODEL_ULTRA
+            )):
                 return True
         if cap in (TEMPERATURE_KEY, HUMIDITY_KEY, AIR_QUALITY_KEY):
             if self.model_id.startswith(MODEL_BABY):
@@ -1410,18 +1484,26 @@ class ArloCamera(ArloChildDevice):
                 return True
         if cap in (CONNECTION_KEY,):
             # These devices are their own base stations so don't re-add connection key.
-            if self.parent_id == self.device_id and self.model_id.startswith(
-                (
+            if self.parent_id == self.device_id and self.model_id.startswith((
                     MODEL_BABY,
                     MODEL_PRO_3_FLOODLIGHT,
                     MODEL_PRO_4,
-                    MODEL_ESSENTIAL,
+                    MODEL_PRO_5,
+                    MODEL_ESSENTIAL_SPOTLIGHT,
+                    MODEL_ESSENTIAL_XL_SPOTLIGHT,
+                    MODEL_ESSENTIAL_XL_OUTDOOR_GEN2_2K,
+                    MODEL_ESSENTIAL_XL_OUTDOOR_GEN2_HD,
+                    MODEL_ESSENTIAL_OUTDOOR_GEN2_2K,
+                    MODEL_ESSENTIAL_OUTDOOR_GEN2_HD,
                     MODEL_WIRED_VIDEO_DOORBELL,
-                    MODEL_WIREFREE_VIDEO_DOORBELL,
+                    MODEL_WIRED_VIDEO_DOORBELL_GEN2_HD,
+                    MODEL_WIRED_VIDEO_DOORBELL_GEN2_2K,
+                    MODEL_ESSENTIAL_VIDEO_DOORBELL,
                     MODEL_ESSENTIAL_INDOOR,
+                    MODEL_ESSENTIAL_INDOOR_GEN2_2K,
+                    MODEL_ESSENTIAL_INDOOR_GEN2_HD,
                     MODEL_GO,
-                )
-            ):
+            )):
                 return False
             if self.device_type in ("arloq", "arloqs"):
                 return False
