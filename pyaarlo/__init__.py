@@ -52,7 +52,7 @@ from .util import time_to_arlotime
 
 _LOGGER = logging.getLogger("pyaarlo")
 
-__version__ = "0.8.0.19"
+__version__ = "0.8.0.20"
 
 
 class PyArlo(object):
@@ -417,6 +417,8 @@ class PyArlo(object):
             base.update_modes(initial)
             base.keep_ratls_open()
             base.update_states()
+        for location in self._locations:
+            location.update_modes(initial)
 
     def _refresh_modes(self):
         self.vdebug("refresh modes")
