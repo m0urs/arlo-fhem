@@ -28,6 +28,11 @@ TCP_PORT = 5005
 # Buffer size for communication socket (normally no need to change)
 BUFFER_SIZE = 1024
 
+[LOCATION]
+
+# Name of the location which should be used (as defined in Arlo app)
+LOCATION_NAME = _location_name_
+
 [MISC]
 
 # Maximum of login attempts
