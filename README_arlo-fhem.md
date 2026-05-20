@@ -93,6 +93,11 @@ TCP_PORT = 5005
 # Buffer size for communication socket (normally no need to change)
 BUFFER_SIZE = 1024
 
+[LOCATION]
+
+# Name of the location which should be used (as defined in Arlo app)
+LOCATION_NAME = _location_name_
+
 [MISC]
 
 # Maximum of login attempts
@@ -163,17 +168,15 @@ The following commands are currently implemented:
 |quit               |quit       |quit the daemon (you can also end via service like "systemctl stop arlo-fhem" )
 |set-mode \<mode>	|set-mode aktiviert	|Set a specified mode (see next table for all supported modes)
 |get-mode           |get-mode   |Reads all modes and writes the modes as readings to a device in FHEM
-|set-brightness \<device> \<level>| set-brightness Terrasse 3|Set the brightness level for the specified camera device (where level is one of -3, -2, -1, 0, 1, 2, 3) **not yet implemented**
-|list-base          |list-base  |Writes a list of all Arlo base stations to syslog. The list includes also the device ID and all supported modes
-|list-cameras       |list-cameras   |Writes a list of all cameras and their IDs to syslog
-|list-lights       |list-lights   |Writes a list of all lights and their IDs to syslog
+|list-devices       |list-devices |Lists all device sknown to the system with type and id to syslog.
+|list-locations     |list-locations   |Writes a list of all locations known to the system with detailed information to syslog
 
 <br>
 
 Mode | Purpose
 --- | ---
-aktiviert | Activate (Arm) all cams
-deaktiviert | Deactivate (Disarm) all cams
-aktiviert_tag | Set several custom modes for my different cams with different sensitivity during the day
-garten | Only activate some of my cams
-garten_hinten | Only activate some of my cams
+aktiviert | Set the "armeAway" state of the location
+deaktiviert | Set the "standy" state for the location
+aktiviert_tag | same as "aktiviert"; only for backward compatibility
+garten | Set the "armHome" state of the location
+garten_hinten | same as "garten"; only for backward compatibility

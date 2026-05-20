@@ -5,7 +5,7 @@
 # Based on https://github.com/twrecked/pyaarlo
 # Michael Urspringer
 
-VERSION = "1.1.14"
+VERSION = "1.1.15"
 
 import pyaarlo
 import argparse
@@ -55,10 +55,16 @@ def getDeviceFromName(name, devices):
             return(device)
     return("")
 
+def getLocationFromName(name, locations):
+    for location in locations:
+        if location.name == "location_"+name:
+            return(location)
+    return("")
+
 print(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "- arlo-fhem - version", VERSION)
 
 # set up logging, change ERROR or INFO to DEBUG for a *lot* more information
-logging.basicConfig(level=logging.ERROR,
+logging.basicConfig(level=logging.INFO,
                     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
                     filename='debug.log')
 _LOGGER = logging.getLogger('arlo-fhem')
@@ -92,6 +98,9 @@ TCP_IP = config.get("SOCKET", "TCP_IP")
 TCP_PORT = int(config.get("SOCKET", "TCP_PORT"))
 BUFFER_SIZE = int(config.get("SOCKET", "BUFFER_SIZE"))
 
+# Location Name
+LOCATION_NAME = config.get("LOCATION","LOCATION_NAME")
+
 # Misc parameters
 MAX_TRIES = int(config.get("MISC", "MAX_TRIES"))
 LOGIN_WAIT = int(config.get("MISC", "LOGIN_WAIT"))
@@ -101,9 +110,14 @@ FHEM_HOST = config.get("FHEM", "FHEM_HOST")
 FHEM_PORT = int(config.get("FHEM", "FHEM_PORT"))
 FHEM_PASSWORD = config.get("FHEM", "FHEM_PASSWORD")
 
-
 # Login to Arlo, use 2FA via IMAP Mail if required
 arlo = loginToArlo(USERNAME,PASSWORD,IMAPSERVER,IMAPUSER,IMAPPASSWORD,MAX_TRIES,LOGIN_WAIT)
+
+# pprint.pprint(vars(arlo))
+
+# Get correct location element according to the Name
+location = getLocationFromName(LOCATION_NAME, arlo.locations)
+print(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "- arlo-fhem - Use location: ",location.name)
 
 while True:
 
@@ -112,7 +126,7 @@ while True:
     s.bind((TCP_IP, TCP_PORT))
     s.listen(1)
     conn, addr = s.accept()
-
+    
     while True:
 
         received_command = conn.recv(BUFFER_SIZE)
@@ -135,96 +149,48 @@ while True:
         except IndexError:
             parameter2 = ""
 
-        if command == 'list-cameras':
-            # List all cameras
-            for camera in arlo.cameras:
-                print("camera: name={},device_id={},state={}".format(camera.name, camera.device_id, camera.state))
+        if command == 'list-devices':
+            for device in arlo._devices:
+                print("device: name={} | deviceType={} | device_id={}".format(device["deviceName"], device["deviceType"], device["uniqueId"]))
 
-        elif command == 'list-lights':
-            # List all lights
-            for light in arlo.lights:
-                print("light: name={},device_id={},state={}".format(light.name, light.device_id, light.state))
-
-        elif command == 'list-base':
-            # List all base stations
-            for base in arlo.base_stations:
-                print("base: name={},device_id={},state={},mode={}".format(base.name, base.device_id, base.state, base.mode))
-                pprint.pprint(base.available_modes_with_ids)
+        elif command == 'list-locations':
+            # List all locations
+            for location in arlo.locations:
+                print("********** location: name={}, uid={} **********".format(location.name,location._uid))
+                pprint.pprint(location._attrs)
+                print("********************".format(location.name,location._uid))
 
         elif command == 'set-mode':
             if parameter1 == 'deaktiviert':
-                base = getDeviceFromName("Base",arlo.base_stations)
-                base.mode = 'disarmed'
-                base = getDeviceFromName("Bridge_AZMichael",arlo.base_stations)
-                base.mode = 'disarmed'
-                base = getDeviceFromName("Bridge_AZSabine",arlo.base_stations)
-                base.mode = 'disarmed'
+                location.mode = "standby"
             elif parameter1 == 'aktiviert':
-                base = getDeviceFromName("Base",arlo.base_stations)
-                base.mode = 'armed'
-                base = getDeviceFromName("Bridge_AZMichael",arlo.base_stations)
-                base.mode = 'armed'
-                base = getDeviceFromName("Bridge_AZSabine",arlo.base_stations)
-                base.mode = 'armed'
+                location.mode = "armAway"
             elif parameter1 == 'aktiviert_tag':
-                base = getDeviceFromName("Base",arlo.base_stations)
-                base.mode = 'aktiviert_tag'
-                base = getDeviceFromName("Bridge_AZMichael",arlo.base_stations)
-                base.mode = 'aktiviert_tag'
-                base = getDeviceFromName("Bridge_AZSabine",arlo.base_stations)
-                base.mode = 'aktiviert_tag'
+                location.mode = "armAway"
             elif parameter1 == 'garten':
-                base = getDeviceFromName("Base",arlo.base_stations)
-                base.mode = 'garten_alle'
-                base = getDeviceFromName("Bridge_AZMichael",arlo.base_stations)
-                base.mode = 'garten'
-                base = getDeviceFromName("Bridge_AZSabine",arlo.base_stations)
-                base.mode = 'armed'
+                location.mode = "armHome"
             elif parameter1 == 'garten_hinten':
-                base = getDeviceFromName("Base",arlo.base_stations)
-                base.mode = 'garten_2'
-                base = getDeviceFromName("Bridge_AZMichael",arlo.base_stations)
-                base.mode = 'disarmed'
-                base = getDeviceFromName("Bridge_AZSabine",arlo.base_stations)
-                base.mode = 'armed'
+                location.mode = "armHome"
             else:
                 print(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "- arlo-fhem - set-mode - unknown mode parameter - ignoring")
                 break
 
         elif command == 'get-mode':
-            base = getDeviceFromName("Base",arlo.base_stations)
-            statusHome = base.mode
-            sendCommandtoFHEM(FHEM_HOST, FHEM_PORT, FHEM_PASSWORD, "setreading Arlo_Cam.dum status-Home "+base.mode)
-            base = getDeviceFromName("Bridge_AZMichael",arlo.base_stations)
-            statusBridgeAZMichael = base.mode
-            sendCommandtoFHEM(FHEM_HOST, FHEM_PORT, FHEM_PASSWORD, "setreading Arlo_Cam.dum status-Bridge_AZMichael "+base.mode)
-            base = getDeviceFromName("Bridge_AZSabine",arlo.base_stations)
-            statusBridgeAZSabine = base.mode
-            sendCommandtoFHEM(FHEM_HOST, FHEM_PORT, FHEM_PASSWORD, "setreading Arlo_Cam.dum status-Bridge_AZSabine "+base.mode)
-            if statusHome == "disarmed" and statusBridgeAZMichael == "disarmed" and statusBridgeAZSabine == "disarmed":
+            statusHome = location.mode
+            sendCommandtoFHEM(FHEM_HOST, FHEM_PORT, FHEM_PASSWORD, "setreading Arlo_Cam.dum status-Home "+statusHome)
+            statusBridgeAZMichael = location.mode
+            sendCommandtoFHEM(FHEM_HOST, FHEM_PORT, FHEM_PASSWORD, "setreading Arlo_Cam.dum status-Bridge_AZMichael "+statusBridgeAZMichael)
+            statusBridgeAZSabine = location.mode
+            sendCommandtoFHEM(FHEM_HOST, FHEM_PORT, FHEM_PASSWORD, "setreading Arlo_Cam.dum status-Bridge_AZSabine "+statusBridgeAZSabine)
+            if statusHome == 'standby':
                 currentMode = "Deaktiviert"
-            elif statusHome == "armed" and statusBridgeAZMichael == "armed" and statusBridgeAZSabine == "armed":
+            elif statusHome == 'armAway':
                 currentMode = "Aktiviert"
-            elif statusHome == "Aktiviert_Tag" and statusBridgeAZMichael == "Aktiviert_Tag" and statusBridgeAZSabine == "Aktiviert_Tag":
-                currentMode = "Aktiviert"
-            elif statusHome == "Garten_Alle" and statusBridgeAZMichael == "Garten" and statusBridgeAZSabine == "armed":                
-                currentMode = "Garten"
-            elif statusHome == "Garten_2" and statusBridgeAZMichael == "disarmed" and statusBridgeAZSabine == "armed":                
+            elif statusHome == 'armHome':
                 currentMode = "Garten_hinten"
             else:
                 currentMode = "Undefiniert"
             sendCommandtoFHEM(FHEM_HOST, FHEM_PORT, FHEM_PASSWORD, "setreading Arlo_Cam.dum currentMode "+currentMode)
-
-        elif command == 'set-brightness':
-            if not parameter1 in ["Terrasse", "Garten_1", "Garten_2"]:
-                print(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "- arlo-fhem - set-brightness - unknown camera - ignoring")
-                break
-            if parameter2 in ["-2", "-1", "0", "1", "2"]:
-                camera = getDeviceFromName(parameter1,arlo.cameras)
-                camera.brightness = int(parameter2)
-            else:
-                print(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "- arlo-fhem - set-brightness - unknown brightness value - ignoring")
-                break
 
         elif command == 'quit':
             print(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "- arlo-fhem - quit command received ... exiting!")
